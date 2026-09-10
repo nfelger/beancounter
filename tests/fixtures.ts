@@ -45,14 +45,19 @@ export function source(transactions: RawTransaction[] = [raw]): ParsedImport {
 }
 export function csv(rows: RawTransaction[] = [raw]) {
   const quote = (v: string) => (/[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v)
+
   return [
     'Umsatzanzeige;Datei erstellt am: 28.02.2025',
     'IBAN;' + raw.account,
     'Zeitraum;01.02.2025 - 28.02.2025',
     '',
     'Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung',
-    ...rows.map((t) =>
-      [
+    ...rows.map((t) => {
+      if (t.rawBalance === undefined || t.balanceCurrency === undefined) {
+        throw new Error('csv fixture requires balance fields')
+      }
+
+      return [
         t.bookingDate,
         t.valueDate,
         t.rawPayee,
@@ -64,8 +69,8 @@ export function csv(rows: RawTransaction[] = [raw]) {
         t.currency,
       ]
         .map(quote)
-        .join(';'),
-    ),
+        .join(';')
+    }),
   ].join('\n')
 }
 export function snapshot(): Snapshot {
