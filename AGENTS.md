@@ -8,6 +8,7 @@ These instructions apply to the entire repository. See [ROADMAP.md](ROADMAP.md) 
 - Use Vue single-file components, the Composition API, scoped/shared CSS, and local reactive state. Keep domain logic framework-independent.
 - Use Papa Parse for CSV mechanics, Zod for data validation, Vitest for domain/service tests, and Playwright for the key browser journeys. Use npm with its committed lockfile, ESLint, and Prettier.
 - Use one private Google spreadsheet for cross-device persistence, accessed directly from the browser through Google's APIs.
+- Use Google’s official Identity Services SDK for browser OAuth and maintained type declarations for Google APIs; keep app-specific adapters small.
 - Use Google accounts, OAuth consent, and spreadsheet sharing permissions for access. Prefer `drive.file` with an app-created spreadsheet or Google Picker for an existing spreadsheet.
 - Run CSV parsing, generic cleanup, rule evaluation, and reporting in the browser.
 - Keep transactions, regex rules, personal normalization mappings, classification/exclusion rules, transaction exceptions, budgets, and import history in the private spreadsheet.

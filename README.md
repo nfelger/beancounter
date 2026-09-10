@@ -15,6 +15,12 @@ Import ING transaction CSVs from a phone, preview private rule-based classificat
 
 Budgeting, pivot-style reporting, and historical comparisons remain on the [roadmap](ROADMAP.md).
 
+## Google integration
+
+OAuth uses [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model), loaded from Google's hosted SDK. The app adapter handles loading, error messages, and in-memory token expiry. It does not implement the OAuth protocol. Google Picker uses Google's SDK as well. Their TypeScript declarations come from DefinitelyTyped packages.
+
+Sheets requests use `fetch` with the SDK-issued access token, an approach supported by Google. Spreadsheet schema validation, import deduplication, and save recovery remain application logic.
+
 ## Run locally
 
 Use Node 24 LTS and npm:

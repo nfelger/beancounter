@@ -3,50 +3,6 @@ export interface GoogleConfig {
   apiKey: string
   projectNumber: string
 }
-interface TokenResponse {
-  access_token?: string
-  expires_in?: number
-  error?: string
-}
-interface TokenClient {
-  requestAccessToken: (options: { prompt: string }) => void
-}
-interface PickerResult {
-  action: string
-  docs?: { id: string }[]
-}
-interface PickerBuilder {
-  addView(view: unknown): PickerBuilder
-  setOAuthToken(token: string): PickerBuilder
-  setDeveloperKey(key: string): PickerBuilder
-  setAppId(id: string): PickerBuilder
-  setOrigin(origin: string): PickerBuilder
-  setCallback(callback: (data: PickerResult) => void): PickerBuilder
-  build(): { setVisible(visible: boolean): void }
-}
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        oauth2: {
-          initTokenClient: (config: {
-            client_id: string
-            scope: string
-            callback: (response: TokenResponse) => void
-            error_callback: () => void
-          }) => TokenClient
-          revoke: (token: string, callback: () => void) => void
-        }
-      }
-      picker: {
-        PickerBuilder: new () => PickerBuilder
-        ViewId: { SPREADSHEETS: unknown }
-        Action: { PICKED: string; CANCEL: string }
-      }
-    }
-    gapi?: { load(name: string, config: { callback: () => void; onerror: () => void }): void }
-  }
-}
 const loaded = new Map<string, Promise<void>>()
 function script(url: string) {
   if (!loaded.has(url))
@@ -83,7 +39,7 @@ export function requestToken(clientId: string): Promise<{ token: string; expires
         else
           resolve({
             token: response.access_token,
-            expiresAt: Date.now() + (response.expires_in ?? 3600) * 1000,
+            expiresAt: Date.now() + Number(response.expires_in ?? 3600) * 1000,
           })
       },
       error_callback: () => reject(new Error('Anmeldung abgebrochen oder Popup blockiert.')),
@@ -96,13 +52,13 @@ export async function pickSpreadsheet(token: string, config: GoogleConfig): Prom
     throw new Error('Für die Dateiauswahl fehlen API-Key oder Projektnummer in den Einstellungen.')
   await script('https://apis.google.com/js/api.js')
   await new Promise<void>((resolve, reject) =>
-    window.gapi!.load('picker', {
+    window.gapi.load('picker', {
       callback: resolve,
       onerror: () => reject(new Error('Dateiauswahl konnte nicht geladen werden.')),
     }),
   )
   return new Promise((resolve) => {
-    const picker = window.google!.picker
+    const picker = window.google.picker
     new picker.PickerBuilder()
       .addView(picker.ViewId.SPREADSHEETS)
       .setOAuthToken(token)
