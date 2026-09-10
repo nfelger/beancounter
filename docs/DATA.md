@@ -9,13 +9,13 @@ All personal configuration and records live in the private spreadsheet. Public c
 | Transactions | Original fields, stable identity, derived classification, and explicit manual overrides |
 | Rules        | Private settings, normalization steps, and ordered declarative rules                    |
 | Imports      | Export identity, coverage dates, counts, and a digest of the rules used                 |
-| Meta         | Schema version, currently 3                                                             |
+| Meta         | Schema version, currently 4                                                             |
 
 The application validates tab names and headers before writing. It does not migrate an arbitrary existing financial spreadsheet. Keep existing pivot workbooks until migration/reporting support is designed.
 
 ### Development resets
 
-Only schema 3 is supported; there is no compatibility or migration path. For an existing development spreadsheet, finish any pending import first, clear the data rows in both Transactions and Imports, retain the headers and Rules tab, add headers Q1 `amount` and R1 `value_date` in Transactions (add columns if needed), and set `schema_version` to `3` in Meta. Reimport the original CSV files. Alternatively, create a new spreadsheet through the app and load your private rules there.
+Only schema 4 is supported; there is no compatibility or migration path. For an existing development spreadsheet, finish any pending import first and clear the data rows in both Transactions and Imports. Keep Rules and the other headers. Set Transactions E1 to `amount` and Q1 to `value_date` (add column Q if needed); clear the obsolete R1 header if present. Set `schema_version` to `4` in Meta, then reimport the original CSV files. Alternatively, create a new spreadsheet through the app and load your private rules there.
 
 ## Transaction identity
 
@@ -27,7 +27,7 @@ Excluded transactions are retained with an exclusion flag. They are omitted from
 
 Amounts are integer cents in application data. Booking/value dates remain date-only strings internally. Only EUR account transactions are currently accepted.
 
-In Sheets, `booking_date` and `value_date` are numeric date cells, `amount` is a numeric euro value for pivot sums, and `amount_minor` remains integer cents for application calculations. Import dates, timestamps (UTC), counts, and rule order are numeric cells too. Raw bank fields remain unchanged in `raw_json`.
+In Sheets, `booking_date` and `value_date` are numeric date cells, `amount` is a numeric euro value for pivot sums, and there is no separate cents column. The Sheets adapter divides integer cents by 100 when writing and rounds numeric euros × 100 back to integer cents when reading. It validates numeric types and safe integer bounds; calculations remain in cents inside the app. Import dates, timestamps (UTC), counts, and rule order are numeric cells too. Raw bank fields remain unchanged in `raw_json`.
 
 The API writes explicit numeric values, avoiding locale-dependent input parsing. It reads unformatted values and date serials, so changing display formats does not change app calculations. German locale displays euro amounts with decimal commas and thousands dots. For pivots, sum `amount`, group `booking_date` by month, and filter out excluded transactions. Do not edit derived financial values directly.
 

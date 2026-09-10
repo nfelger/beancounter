@@ -8,6 +8,8 @@ import {
 } from '../domain/model'
 import { validateRulePack, type RulePack } from '../domain/rules'
 import {
+  amountValue,
+  sheetAmountMinor,
   dateSerial,
   timestampSerial,
   sheetDate,
@@ -22,7 +24,7 @@ export const TX_HEADERS = [
   'fingerprint',
   'occurrence',
   'booking_date',
-  'amount_minor',
+  'amount',
   'currency',
   'raw_payee',
   'normalized_payee',
@@ -34,7 +36,6 @@ export const TX_HEADERS = [
   'import_id',
   'matched_rule',
   'raw_json',
-  'amount',
   'value_date',
 ]
 export const RULE_HEADERS = ['kind', 'order', 'enabled', 'spec_json']
@@ -114,17 +115,17 @@ export function googleRequester(token: () => string): Requester {
 }
 type NumberFormat = { type: 'DATE' | 'DATE_TIME' | 'NUMBER'; pattern: string }
 const DATE_FORMAT: NumberFormat = { type: 'DATE', pattern: 'dd.mm.yyyy' }
+// Sheets interprets these format tokens using the spreadsheet locale (default de_DE).
 const EURO_FORMAT: NumberFormat = { type: 'NUMBER', pattern: '#,##0.00 "€"' }
 const INTEGER_FORMAT: NumberFormat = { type: 'NUMBER', pattern: '0' }
 const TX_FORMATS: Record<number, NumberFormat> = {
   2: INTEGER_FORMAT,
   3: DATE_FORMAT,
-  4: INTEGER_FORMAT,
-  16: EURO_FORMAT,
-  17: DATE_FORMAT,
+  4: EURO_FORMAT,
+  16: DATE_FORMAT,
 }
 const IMPORT_FORMATS: Record<number, NumberFormat> = {
-  1: { type: 'DATE_TIME', pattern: 'yyyy-mm-dd hh:mm:ss "UTC"' },
+  1: { type: 'DATE_TIME', pattern: 'dd.mm.yyyy hh:mm:ss "UTC"' },
   4: DATE_FORMAT,
   5: DATE_FORMAT,
   6: INTEGER_FORMAT,
@@ -169,7 +170,7 @@ export function transactionRow(t: Transaction): Cell[] {
     t.fingerprint,
     t.occurrence,
     dateSerial(t.bookingDate),
-    t.amountMinor,
+    amountValue(t.amountMinor),
     t.raw.currency,
     t.raw.rawPayee,
     t.classification.normalized,
@@ -181,7 +182,6 @@ export function transactionRow(t: Transaction): Cell[] {
     t.importId,
     t.classification.matchedRule,
     JSON.stringify(t.raw),
-    t.amountMinor / 100,
     dateSerial(parseGermanDate(t.raw.valueDate)),
   ]
 }
@@ -193,7 +193,7 @@ export function readTransaction(r: Cell[]): Transaction {
       fingerprint: r[1],
       occurrence: sheetInteger(r[2]),
       bookingDate: sheetDate(r[3]),
-      amountMinor: sheetInteger(r[4]),
+      amountMinor: sheetAmountMinor(r[4]),
       raw,
       classification: {
         normalized: r[7],
@@ -312,7 +312,7 @@ export class SheetsStore {
               startColumn: 0,
               rowData: [
                 rowData(headers),
-                ...(title === 'Meta' ? [rowData(['schema_version', '3'])] : []),
+                ...(title === 'Meta' ? [rowData(['schema_version', '4'])] : []),
               ],
             },
           ],
@@ -338,12 +338,12 @@ export class SheetsStore {
         )
       ids[name] = sheet.properties.sheetId
     }
-    const ranges = ['Transactions!A:R', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
+    const ranges = ['Transactions!A:Q', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
     const values = await this.request<{ valueRanges: { values?: Cell[][] }[] }>(
       `/${spreadsheetId}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER&${ranges.map((r) => 'ranges=' + encodeURIComponent(r)).join('&')}`,
     )
     const settings = checkRows(values.valueRanges[3]?.values ?? [], META_HEADERS)
-    if (String(settings.find((r) => r[0] === 'schema_version')?.[1]) !== '3')
+    if (String(settings.find((r) => r[0] === 'schema_version')?.[1]) !== '4')
       throw new Error('Nicht unterstützte Tabellenversion.')
     const [tx, rules, imports] = (['Transactions', 'Rules', 'Imports'] as const).map((name, i) =>
       checkRows(values.valueRanges[i]?.values ?? [], tabs[name]),

@@ -17,6 +17,14 @@ import { prepareImport } from '../src/domain/import'
 import { raw, pack, source, snapshot } from './fixtures'
 
 describe('safe Sheets writes', () => {
+  it('creates sheets with German locale and the current schema', async () => {
+    const request = vi.fn().mockResolvedValue({ spreadsheetId: 'test-sheet' })
+    await new SheetsStore(request as Requester).create()
+    const body = JSON.parse(request.mock.calls[0]![1].body)
+    expect(body.properties.locale).toBe('de_DE')
+    expect(body.sheets[0].properties.gridProperties.columnCount).toBe(17)
+    expect(body.sheets[3].data[0].rowData[1].values[1].userEnteredValue.stringValue).toBe('4')
+  })
   it('retains a plan across reload and clears it after confirmation without storing a token', async () => {
     const memory = new Map<string, string>()
     vi.stubGlobal('sessionStorage', {
@@ -75,10 +83,11 @@ describe('safe Sheets writes', () => {
     await store.save(plan)
     const updates = JSON.parse(request.mock.calls[0]![1].body).requests
     const cells = updates[0].updateCells.rows[0].values
-    expect(cells[4].userEnteredValue).toEqual({ numberValue: -123456 })
-    expect(cells[16].userEnteredValue).toEqual({ numberValue: -1234.56 })
-    expect(cells[16].userEnteredFormat.numberFormat.pattern).toBe('#,##0.00 "€"')
-    for (const index of [3, 17]) {
+    expect(cells).toHaveLength(17)
+    expect(TX_HEADERS.filter((h) => h.startsWith('amount'))).toEqual(['amount'])
+    expect(cells[4].userEnteredValue).toEqual({ numberValue: -1234.56 })
+    expect(cells[4].userEnteredFormat.numberFormat.pattern).toBe('#,##0.00 "€"')
+    for (const index of [3, 16]) {
       expect(typeof cells[index].userEnteredValue.numberValue).toBe('number')
       expect(cells[index].userEnteredFormat.numberFormat.type).toBe('DATE')
     }
@@ -99,7 +108,7 @@ describe('safe Sheets writes', () => {
           { values: [TX_HEADERS, underlying(cells)] },
           { values: [RULE_HEADERS, ...ruleRows(pack)] },
           { values: [IMPORT_HEADERS, underlying(receiptCells)] },
-          { values: [META_HEADERS, ['schema_version', '3']] },
+          { values: [META_HEADERS, ['schema_version', '4']] },
         ],
       })
     const loaded = await store.load('test-sheet')
@@ -160,7 +169,7 @@ describe('safe Sheets writes', () => {
     ])
   })
   it.each([
-    { version: '3', headers: TX_HEADERS, valid: true },
+    { version: '4', headers: TX_HEADERS, valid: true },
     { version: '2', headers: TX_HEADERS.slice(0, 16), valid: false },
     {
       version: '2',

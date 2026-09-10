@@ -13,7 +13,7 @@ async function mockGoogle(page: Page, loseResponse = false) {
     [TX_HEADERS],
     [RULE_HEADERS, ...ruleRows(pack)],
     [IMPORT_HEADERS],
-    [META_HEADERS, ['schema_version', '3']],
+    [META_HEADERS, ['schema_version', '4']],
   ]
   let writes = 0
   await page.addInitScript(() => {

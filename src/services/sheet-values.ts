@@ -28,3 +28,14 @@ export function sheetInteger(value: unknown): number {
     throw new Error('Ungültige ganze Zahl.')
   return value
 }
+
+export function sheetAmountMinor(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('Ungültiger Betrag.')
+  // Remove binary floating-point artifacts at the boundary; calculations use cents.
+  return sheetInteger(Math.round(value * 100))
+}
+export function amountValue(cents: number): number {
+  const euros = sheetInteger(cents) / 100
+  if (sheetAmountMinor(euros) !== cents) throw new Error('Betrag zu groß für Google Sheets.')
+  return euros
+}
