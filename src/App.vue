@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
-import { registerNavigation } from './services/webmcp'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import TransactionList from './components/TransactionList.vue'
 import { money, displayDate, type ImportPreview } from './domain/model'
 import { digest } from './domain/import'
@@ -64,8 +63,6 @@ const newSpend = computed(
     ),
 )
 const receipts = computed(() => snapshot.value?.receipts.slice().reverse() ?? [])
-let unregisterNavigation = () => {}
-onUnmounted(() => unregisterNavigation())
 function report(e: unknown) {
   error.value = e instanceof Error ? e.message : 'Die Aktion ist fehlgeschlagen.'
   if (e instanceof GoogleError && e.status === 401) token.value = ''
@@ -277,9 +274,6 @@ function exportBackup() {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 onMounted(async () => {
-  unregisterNavigation = registerNavigation((section) => {
-    view.value = section
-  })
   try {
     const saved = localStorage.getItem('beancounter.config.v1')
     if (saved) {
