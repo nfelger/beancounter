@@ -41,6 +41,30 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 describe('Google session', () => {
+  it('releases a stalled authorization and ignores its late token', async () => {
+    const pending = session.authorize('test-client')
+    const rejected = expect(pending).rejects.toThrow('zu lange')
+    const oldCallback = options.callback
+    vi.advanceTimersByTime(120_000)
+    await rejected
+    expect(session.status.value).toBe('disconnected')
+    oldCallback(response())
+    expect(session.getToken()).toBe('')
+    const retry = session.authorize('test-client')
+    options.callback(response())
+    await retry
+  })
+  it('resets readiness after a load failure so preparation can be retried', async () => {
+    session = createGoogleSession()
+    vi.mocked(loadGoogle).mockRejectedValueOnce(new Error('load failed'))
+    const first = session.prepare()
+    expect(session.prepare()).toBe(first)
+    await expect(first).rejects.toThrow('load failed')
+    expect(session.loading.value).toBe(false)
+    expect(session.ready.value).toBe(false)
+    await session.prepare()
+    expect(session.ready.value).toBe(true)
+  })
   it('opens the SDK popup synchronously and expires UI and request access together', async () => {
     const pending = session.authorize('test-client')
     expect(requestAccessToken).toHaveBeenCalledOnce()

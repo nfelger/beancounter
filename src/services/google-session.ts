@@ -62,9 +62,14 @@ export function createGoogleSession() {
     status.value = 'authorizing'
     return new Promise((resolve, reject) => {
       let settled = false
+      const timer = setTimeout(
+        () => fail('Anmeldung hat zu lange gedauert. Bitte erneut verbinden.'),
+        120_000,
+      )
       const fail = (message: string) => {
         if (settled) return
         settled = true
+        clearTimeout(timer)
         cancelAuthorization = undefined
         status.value = 'disconnected'
         reject(new Error(message))
@@ -91,6 +96,7 @@ export function createGoogleSession() {
               return
             }
             settled = true
+            clearTimeout(timer)
             cancelAuthorization = undefined
             token = response.access_token
             expiresAt = Date.now() + lifetime

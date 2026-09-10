@@ -76,11 +76,16 @@ async function rememberConfig() {
   try {
     localStorage.setItem('beancounter.config.v1', JSON.stringify(config.value))
     notice.value = 'Einstellungen auf diesem Gerät gespeichert.'
-    if (config.value.clientId && !googleReady.value) {
-      await session.prepare()
-    }
   } catch {
     error.value = 'Einstellungen konnten nicht gespeichert werden.'
+    return
+  }
+  if (config.value.clientId && !googleReady.value) {
+    try {
+      await session.prepare()
+    } catch (e) {
+      report(e)
+    }
   }
 }
 async function refresh() {
