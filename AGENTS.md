@@ -4,7 +4,9 @@ These instructions apply to the entire repository. See [ROADMAP.md](ROADMAP.md) 
 
 ## Architecture
 
-- Build a static TypeScript web app, hosted on GitHub Pages.
+- Build a static Vue + TypeScript web app with Vite, hosted on GitHub Pages.
+- Use Vue single-file components, the Composition API, scoped/shared CSS, and local reactive state. Keep domain logic framework-independent.
+- Use Papa Parse for CSV mechanics, Zod for data validation, Vitest for domain/service tests, and Playwright for the key browser journeys. Use npm with its committed lockfile, ESLint, and Prettier.
 - Use one private Google spreadsheet for cross-device persistence, accessed directly from the browser through Google's APIs.
 - Use Google accounts, OAuth consent, and spreadsheet sharing permissions for access. Prefer `drive.file` with an app-created spreadsheet or Google Picker for an existing spreadsheet.
 - Run CSV parsing, generic cleanup, rule evaluation, and reporting in the browser.
@@ -37,6 +39,8 @@ This repository and its deployed static assets are public. Preventing disclosure
 - Use a conventional local TypeScript development workflow and maintain the project's chosen package manager and lockfile once established.
 - Configure GitHub Actions to test, build, and deploy successful changes to Pages. Until configured, do not claim these checks or deployment exist.
 - Test meaningful failure modes: parsing, encoding, regex/Unicode parity, legitimate repeated transactions, overlapping imports, and uncertain save outcomes.
+- Run `npm run check` and `npm run format:check` before publishing code. The optional browser suite is `npm run test:e2e`; document when browser or live Google validation has not run.
+- Financial data and tokens normally stay in memory. An unconfirmed import alone may be held in tab-scoped sessionStorage for recovery; clear it immediately after verified success. Never store OAuth tokens there or add general persistent financial caching.
 - Preserve original bank fields separately from derived classifications and manual overrides. A rule update must not silently erase a manual correction.
 - Treat imported strings as literal spreadsheet values, not executable formulas.
 - Keep architecture, workflow, and privacy requirements here; keep now/next/later priorities in `ROADMAP.md`.
