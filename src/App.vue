@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, watch, ref, shallowRef } from 'vue'
 import TransactionList from './components/TransactionList.vue'
 import { money, displayDate, needsReview, type ImportPreview } from './domain/model'
 import { digest } from './domain/import'
@@ -116,9 +116,23 @@ async function createSheet() {
     notice.value = 'Tabelle erstellt. Lade jetzt deine private Regeldatei.'
   })
 }
+let pickerAbort: AbortController | undefined
+watch(
+  connected,
+  (active) => {
+    if (!active) pickerAbort?.abort()
+  },
+  { flush: 'sync' },
+)
 async function chooseSheet() {
   await run('Tabelle auswählen', async () => {
-    const id = await pickSpreadsheet(session.getToken(), config.value)
+    pickerAbort = new AbortController()
+    let id: string | null
+    try {
+      id = await pickSpreadsheet(session.getToken, config.value, pickerAbort.signal)
+    } finally {
+      pickerAbort = undefined
+    }
     if (!id) return
     const next = await store.load(id)
     sheetId.value = id
@@ -266,6 +280,7 @@ function exportBackup() {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 onUnmounted(() => {
+  pickerAbort?.abort()
   window.removeEventListener('focus', session.checkExpiry)
   document.removeEventListener('visibilitychange', session.checkExpiry)
   session.disconnect()
