@@ -22,7 +22,7 @@ describe('safe Sheets writes', () => {
     await new SheetsStore(request as Requester).create()
     const body = JSON.parse(request.mock.calls[0]![1].body)
     expect(body.properties.locale).toBe('de_DE')
-    expect(body.sheets[0].properties.gridProperties.columnCount).toBe(17)
+    expect(body.sheets[0].properties.gridProperties.columnCount).toBe(16)
     expect(body.sheets[3].data[0].rowData[1].values[1].userEnteredValue.stringValue).toBe('4')
   })
   it('retains a plan across reload and clears it after confirmation without storing a token', async () => {
@@ -83,14 +83,12 @@ describe('safe Sheets writes', () => {
     await store.save(plan)
     const updates = JSON.parse(request.mock.calls[0]![1].body).requests
     const cells = updates[0].updateCells.rows[0].values
-    expect(cells).toHaveLength(17)
+    expect(cells).toHaveLength(16)
     expect(TX_HEADERS.filter((h) => h.startsWith('amount'))).toEqual(['amount'])
     expect(cells[4].userEnteredValue).toEqual({ numberValue: -1234.56 })
     expect(cells[4].userEnteredFormat.numberFormat.pattern).toBe('#,##0.00 "€"')
-    for (const index of [3, 16]) {
-      expect(typeof cells[index].userEnteredValue.numberValue).toBe('number')
-      expect(cells[index].userEnteredFormat.numberFormat.type).toBe('DATE')
-    }
+    expect(typeof cells[3].userEnteredValue.numberValue).toBe('number')
+    expect(cells[3].userEnteredFormat.numberFormat.type).toBe('DATE')
     const receiptCells = updates[1].updateCells.rows[0].values
     for (const index of [1, 4, 5, 6, 7, 8, 9])
       expect(typeof receiptCells[index].userEnteredValue.numberValue).toBe('number')

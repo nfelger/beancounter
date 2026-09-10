@@ -16,7 +16,6 @@ import {
   sheetInteger,
   sheetTimestamp,
 } from './sheet-values'
-import { parseGermanDate } from '../domain/csv'
 import { receiptFor } from '../domain/import'
 
 export const TX_HEADERS = [
@@ -36,7 +35,6 @@ export const TX_HEADERS = [
   'import_id',
   'matched_rule',
   'raw_json',
-  'value_date',
 ]
 export const RULE_HEADERS = ['kind', 'order', 'enabled', 'spec_json']
 export const IMPORT_HEADERS = [
@@ -122,7 +120,6 @@ const TX_FORMATS: Record<number, NumberFormat> = {
   2: INTEGER_FORMAT,
   3: DATE_FORMAT,
   4: EURO_FORMAT,
-  16: DATE_FORMAT,
 }
 const IMPORT_FORMATS: Record<number, NumberFormat> = {
   1: { type: 'DATE_TIME', pattern: 'dd.mm.yyyy hh:mm:ss "UTC"' },
@@ -182,7 +179,6 @@ export function transactionRow(t: Transaction): Cell[] {
     t.importId,
     t.classification.matchedRule,
     JSON.stringify(t.raw),
-    dateSerial(parseGermanDate(t.raw.valueDate)),
   ]
 }
 export function readTransaction(r: Cell[]): Transaction {
@@ -338,7 +334,7 @@ export class SheetsStore {
         )
       ids[name] = sheet.properties.sheetId
     }
-    const ranges = ['Transactions!A:Q', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
+    const ranges = ['Transactions!A:P', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
     const values = await this.request<{ valueRanges: { values?: Cell[][] }[] }>(
       `/${spreadsheetId}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER&${ranges.map((r) => 'ranges=' + encodeURIComponent(r)).join('&')}`,
     )
