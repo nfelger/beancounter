@@ -9,8 +9,8 @@ export const rawSchema = z.object({
   purpose: text,
   rawAmount: text,
   currency: z.string().regex(/^[A-Z]{3}$/),
-  rawBalance: text,
-  balanceCurrency: text,
+  rawBalance: z.string().optional(),
+  balanceCurrency: z.string().optional(),
   account: text,
 })
 export type RawTransaction = z.infer<typeof rawSchema>
