@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import {
   effectivePayee,
   effectiveCategory,
+  needsReview,
   money,
   displayDate,
   type Transaction,
@@ -29,9 +30,7 @@ const filtered = computed(() =>
         text.includes(search.value.toLocaleLowerCase()) &&
         (filter.value === 'all' ||
           (filter.value === 'excluded' && t.classification.excluded) ||
-          (filter.value === 'review' &&
-            !t.classification.excluded &&
-            t.classification.confidence !== 'high'))
+          (filter.value === 'review' && needsReview(t)))
       )
     })
     .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate)),
@@ -88,10 +87,8 @@ function submit() {
       </div>
       <div class="tx-foot">
         <span v-if="t.classification.excluded" class="badge">Ausgeschlossen</span>
+        <span v-else-if="needsReview(t)" class="badge review">Zuordnung prüfen</span>
         <span v-else-if="t.manualPayee || t.manualCategory" class="badge">Manuell zugeordnet</span>
-        <span v-else-if="t.classification.confidence !== 'high'" class="badge review"
-          >Zuordnung prüfen</span
-        >
         <details>
           <summary>Original anzeigen</summary>
           <dl>

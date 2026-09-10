@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import TransactionList from './components/TransactionList.vue'
-import { money, displayDate, type ImportPreview } from './domain/model'
+import { money, displayDate, needsReview, type ImportPreview } from './domain/model'
 import { digest } from './domain/import'
 import { validateRulePack, type RulePack } from './domain/rules'
 import { loadGoogle, requestToken, pickSpreadsheet, type GoogleConfig } from './services/google'
@@ -48,12 +48,7 @@ const categories = computed(() => snapshot.value?.rules?.categories ?? [])
 const excluded = computed(
   () => preview.value?.transactions.filter((t) => t.classification.excluded).length ?? 0,
 )
-const reviewCount = computed(
-  () =>
-    preview.value?.transactions.filter(
-      (t) => !t.classification.excluded && t.classification.confidence !== 'high',
-    ).length ?? 0,
-)
+const reviewCount = computed(() => preview.value?.transactions.filter(needsReview).length ?? 0)
 const newSpend = computed(
   () =>
     -(

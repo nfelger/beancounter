@@ -20,7 +20,6 @@ export const TX_HEADERS = [
   'normalized_payee',
   'payee',
   'category',
-  'confidence',
   'excluded',
   'manual_payee',
   'manual_category',
@@ -138,7 +137,6 @@ export function transactionRow(t: Transaction): Cell[] {
     t.classification.normalized,
     t.classification.payee,
     t.classification.category,
-    t.classification.confidence,
     t.classification.excluded,
     t.manualPayee,
     t.manualCategory,
@@ -155,18 +153,17 @@ export function readTransaction(r: Cell[]): Transaction {
       occurrence: r[2],
       bookingDate: r[3],
       amountMinor: r[4],
-      raw: JSON.parse(String(r[16])),
+      raw: JSON.parse(String(r[15])),
       classification: {
         normalized: r[7],
         payee: r[8],
         category: r[9],
-        confidence: r[10],
-        excluded: r[11],
-        matchedRule: r[15] ?? '',
+        excluded: r[10],
+        matchedRule: r[14] ?? '',
       },
-      manualPayee: r[12] ?? '',
-      manualCategory: r[13] ?? '',
-      importId: r[14],
+      manualPayee: r[11] ?? '',
+      manualCategory: r[12] ?? '',
+      importId: r[13],
     })
   } catch {
     throw new Error(
@@ -274,7 +271,7 @@ export class SheetsStore {
               startColumn: 0,
               rowData: [
                 rowData(headers),
-                ...(title === 'Meta' ? [rowData(['schema_version', '1'])] : []),
+                ...(title === 'Meta' ? [rowData(['schema_version', '2'])] : []),
               ],
             },
           ],
@@ -298,14 +295,14 @@ export class SheetsStore {
         )
       ids[name] = sheet.properties.sheetId
     }
-    const ranges = ['Transactions!A:Q', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
+    const ranges = ['Transactions!A:P', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
     const values = await this.request<{ valueRanges: { values?: Cell[][] }[] }>(
       `/${spreadsheetId}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&${ranges.map((r) => 'ranges=' + encodeURIComponent(r)).join('&')}`,
     )
     const [tx, rules, imports, settings] = (Object.keys(tabs) as Tab[]).map((name, i) =>
       checkRows(values.valueRanges[i]?.values ?? [], tabs[name]),
     )
-    if (!settings?.some((r) => r[0] === 'schema_version' && String(r[1]) === '1'))
+    if (!settings?.some((r) => r[0] === 'schema_version' && String(r[1]) === '2'))
       throw new Error('Nicht unterstützte Tabellenversion.')
     const transactions = tx!.map(readTransaction),
       receipts = imports!.map(readReceipt)
@@ -360,7 +357,7 @@ export class SheetsStore {
         requests: [
           {
             updateCells: {
-              start: { sheetId: snapshot.ids.Transactions, rowIndex: index + 1, columnIndex: 12 },
+              start: { sheetId: snapshot.ids.Transactions, rowIndex: index + 1, columnIndex: 11 },
               rows: [rowData([payee, category])],
               fields: 'userEnteredValue',
             },

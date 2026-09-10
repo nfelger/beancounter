@@ -21,7 +21,6 @@ export const ruleSchema = z.object({
   payee: z.string().max(1000).optional(),
   useNormalized: z.boolean().optional(),
   category: z.string().max(1000).optional(),
-  confidence: z.enum(['high', 'medium', 'low']).default('high'),
   exclude: z.boolean().default(false),
 })
 export const settingsSchema = z.object({
@@ -133,7 +132,6 @@ export function createClassifier(pack: RulePack) {
         ? normalized || pack.unknownPayee
         : r?.payee || normalized || pack.unknownPayee,
       category: r?.category || pack.unknownCategory,
-      confidence: r?.confidence || 'low',
       matchedRule: r?.id || '',
       excluded: r?.exclude || false,
     }

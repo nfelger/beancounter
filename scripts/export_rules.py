@@ -38,8 +38,7 @@ def convert(source: str) -> dict:
                 return value(n.args[0])
             if isinstance(n.func, ast.Name) and n.func.id == "_rule":
                 args = [value(x) for x in n.args]
-                return dict(pattern=args[0], payee=args[1], category=args[2],
-                            confidence=args[3] if len(args) > 3 else "high")
+                return dict(pattern=args[0], payee=args[1], category=args[2])
             if isinstance(n.func, ast.Attribute) and n.func.attr == "compile":
                 return value(n.args[0])
         raise Unsupported("Unsupported constant expression.")
@@ -82,7 +81,6 @@ def convert(source: str) -> dict:
     rules = []
     def add(conditions, **result):
         rules.append(dict(id=f"rule-{len(rules)+1:04d}", enabled=True, conditions=conditions,
-                          confidence=result.pop("confidence", "high"),
                           exclude=result.pop("exclude", False), **result))
 
     def eq(field, val):
@@ -101,7 +99,7 @@ def convert(source: str) -> dict:
     merchant_rules("USER_PAYEE_RULES")
     for key, result in values.get("TRANSACTION_OVERRIDES", []):
         add([eq("key", json.dumps(key, ensure_ascii=False, separators=(",", ":")))],
-            payee=result[0], category=result[1], confidence=result[2])
+            payee=result[0], category=result[1])
 
     field_names = {"normalized": "normalized", "booking_text_norm": "bookingTextNorm",
                    "purpose_norm": "purposeNorm"}
@@ -120,7 +118,7 @@ def convert(source: str) -> dict:
     def result_fields(ret):
         fields = {}
         for kw in ret.value.keywords:
-            if kw.arg in ("category", "confidence"):
+            if kw.arg == "category":
                 fields[kw.arg] = value(kw.value)
             elif kw.arg == "payee":
                 if isinstance(kw.value, ast.Constant):

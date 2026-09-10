@@ -18,7 +18,6 @@ export const classificationSchema = z.object({
   normalized: text,
   payee: text,
   category: text,
-  confidence: z.enum(['high', 'medium', 'low']),
   matchedRule: text,
   excluded: z.boolean(),
 })
@@ -71,6 +70,9 @@ export function effectivePayee(t: Transaction) {
 }
 export function effectiveCategory(t: Transaction) {
   return t.manualCategory || t.classification.category
+}
+export function needsReview(t: Transaction): boolean {
+  return !t.classification.excluded && !t.classification.matchedRule && !t.manualCategory
 }
 export function money(minor: number, currency = 'EUR') {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency }).format(minor / 100)

@@ -32,7 +32,7 @@ Deliver one complete flow: connect a spreadsheet, choose an ING CSV on a phone, 
 - [x] Verify Python/JavaScript regex and Unicode behaviour with representative examples.
 - [x] Provide a private way to import the supplied rules and exceptions into the spreadsheet; never add their contents to the repository or app bundle.
 - [x] Preserve original bank fields separately from automatic payee/category assignments, match information, and manual overrides.
-- [x] Preview new, duplicate, excluded, uncategorised/low-confidence, and invalid entries before confirmation.
+- [x] Preview new, duplicate, excluded, unmatched, and invalid entries before confirmation.
 - [x] Save imported text as literal values, not spreadsheet formulas.
 
 ### Reliable saving and review
@@ -55,7 +55,7 @@ Deliver one complete flow: connect a spreadsheet, choose an ING CSV on a phone, 
 - [ ] Show monthly spending by category, with payee breakdowns within each category.
 - [ ] Show a category-by-month table with totals.
 - [ ] Calculate app reports from transactions rather than depending on the layout of existing spreadsheet pivot tables.
-- [x] Offer a review queue for unmatched or low-confidence classifications (transaction-list filter).
+- [x] Offer a review queue for unmatched classifications (transaction-list filter).
 - [ ] Add a regex rule editor with explicit ordering, validation, sample matches, and an impact preview.
 - [ ] Support explicit reclassification of historical transactions while preserving manual overrides.
 - [ ] Establish report semantics for income, refunds/reimbursements, internal transfers, excluded transactions, and cash withdrawals.

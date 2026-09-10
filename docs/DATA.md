@@ -9,9 +9,15 @@ All personal configuration and records live in the private spreadsheet. Public c
 | Transactions | Original fields, stable identity, derived classification, and explicit manual overrides |
 | Rules        | Private settings, normalization steps, and ordered declarative rules                    |
 | Imports      | Export identity, coverage dates, counts, and a digest of the rules used                 |
-| Meta         | Schema version, currently 1                                                             |
+| Meta         | Schema version, currently 2                                                             |
 
 The application validates tab names and headers before writing. It does not migrate an arbitrary existing financial spreadsheet. Keep existing pivot workbooks until migration/reporting support is designed.
+
+### Upgrade from schema 1
+
+For a Beancounter table created before confidence was removed: finish any pending import with the old app first, then make a private copy of the spreadsheet. Delete column K (`confidence`) in `Transactions` and set `schema_version` to `2` in `Meta`. The new app requires the updated headers and version before loading the table. New tables already use schema 2.
+
+Older rule JSON files still load: obsolete properties are ignored and omitted when rules are saved again. The rule format remains version 1.
 
 ## Transaction identity
 
@@ -33,6 +39,8 @@ Amounts are integer cents in application data. Booking/value dates remain date-o
 
 The Python converter preserves the reference order: exact exclusions, user payee policies, exact historical overrides, context rules, reviewed merchant rules, general merchant rules, and fallbacks.
 
+The review filter shows non-excluded transactions without a matching rule or manual category. A manual category resolves the review item; a payee-only correction does not.
+
 Editing rules affects future imports. Existing stored classifications and manual corrections are preserved; explicit historical reclassification is planned.
 
 ## Rules tab
@@ -44,7 +52,7 @@ Columns: `kind`, `order`, `enabled`, `spec_json`.
 - `rule` rows define conditions and a result. Order is numeric. `enabled` is a spreadsheet boolean.
 - A rule's conditions are combined with AND. Fields are `normalized`, `bookingTextNorm`, `purposeNorm`, `foreign`, or an exact `key`.
 - Operators are `eq`, `search`, and `full`. The last two interpret a JavaScript regular expression; no expression is executed as JavaScript code.
-- Results may specify a payee, use the normalized descriptor, set category/confidence, or exclude the transaction.
+- Results may specify a payee, use the normalized descriptor, set a category, or exclude the transaction.
 - The converter's exact `key` is a serialized seven-field identity; do not hand-author approximate matches for historical exceptions.
 
 Use the private exporter for initial setup. Until the rule editor exists, carefully edit rows directly in Sheets. Normalizer replacement values are literal strings, not backreference expressions. The schema supports the supplied reference; arbitrary Python regex features are not promised to be portable.

@@ -60,7 +60,7 @@ describe('safe Sheets writes', () => {
     const body = JSON.parse(request.mock.calls[0]![1].body)
     expect(body.requests).toHaveLength(2)
     expect(body.requests[0].updateCells.start.rowIndex).toBe(1)
-    expect(body.requests[0].updateCells.rows[0].values[16].userEnteredValue.stringValue).toContain(
+    expect(body.requests[0].updateCells.rows[0].values[15].userEnteredValue.stringValue).toContain(
       'IMPORTXML',
     )
     expect(JSON.stringify(body)).not.toContain('formulaValue')
@@ -101,26 +101,59 @@ describe('safe Sheets writes', () => {
     t.manualPayee = 'Manual name'
     expect(readTransaction(transactionRow(t))).toEqual(t)
   })
-  it('loads the typed schema and refuses malformed stored data', async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce({
-        properties: { title: 'Test' },
-        sheets: ['Transactions', 'Rules', 'Imports', 'Meta'].map((title, sheetId) => ({
-          properties: { title, sheetId },
-        })),
-      })
-      .mockResolvedValueOnce({
-        valueRanges: [
-          { values: [TX_HEADERS] },
-          { values: [RULE_HEADERS, ...ruleRows(pack)] },
-          { values: [IMPORT_HEADERS] },
-          { values: [META_HEADERS, ['schema_version', '1']] },
-        ],
-      })
-    const result = await new SheetsStore(request as Requester).load('test-sheet')
-    expect(result.rules).toEqual(pack)
-    expect(result.transactionRows).toBe(1)
-    expect(() => readTransaction(['secret'])).toThrow('ungültiges Format')
+  it('writes corrections to the manual columns without shifting other fields', async () => {
+    const transactions = (await prepareImport(source(), pack, [])).transactions
+    const request = vi.fn().mockResolvedValue({})
+    await new SheetsStore(request as Requester).correct(
+      { ...snapshot(), transactions },
+      transactions[0]!.id,
+      'Manual name',
+      'Travel',
+    )
+    const update = JSON.parse(request.mock.calls[0]![1].body).requests[0].updateCells
+    expect(update.start).toEqual({ sheetId: 0, rowIndex: 1, columnIndex: 11 })
+    expect(update.rows[0].values).toEqual([
+      { userEnteredValue: { stringValue: 'Manual name' } },
+      { userEnteredValue: { stringValue: 'Travel' } },
+    ])
   })
+  it.each([
+    { version: '2', headers: TX_HEADERS, valid: true },
+    { version: '1', headers: TX_HEADERS, valid: false },
+    {
+      version: '2',
+      headers: [...TX_HEADERS.slice(0, 10), 'confidence', ...TX_HEADERS.slice(10)],
+      valid: false,
+    },
+  ])(
+    'validates headers and schema version before accepting data: $version / $valid',
+    async ({ version, headers, valid }) => {
+      const request = vi
+        .fn()
+        .mockResolvedValueOnce({
+          properties: { title: 'Test' },
+          sheets: ['Transactions', 'Rules', 'Imports', 'Meta'].map((title, sheetId) => ({
+            properties: { title, sheetId },
+          })),
+        })
+        .mockResolvedValueOnce({
+          valueRanges: [
+            { values: [headers] },
+            { values: [RULE_HEADERS, ...ruleRows(pack)] },
+            { values: [IMPORT_HEADERS] },
+            { values: [META_HEADERS, ['schema_version', version]] },
+          ],
+        })
+      const loading = new SheetsStore(request as Requester).load('test-sheet')
+      if (!valid) {
+        await expect(loading).rejects.toThrow(/Tabellenschema|Tabellenversion/)
+        expect(request.mock.calls.every((args) => !args[1]?.method)).toBe(true)
+        return
+      }
+      const result = await loading
+      expect(result.rules).toEqual(pack)
+      expect(result.transactionRows).toBe(1)
+      expect(() => readTransaction(['secret'])).toThrow('ungültiges Format')
+    },
+  )
 })

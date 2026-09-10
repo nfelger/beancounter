@@ -29,7 +29,6 @@ export const pack: RulePack = {
       conditions: [{ field: 'normalized', op: 'full', value: 'MOONBEAN SHOP' }],
       payee: 'Moonbean',
       category: 'Food',
-      confidence: 'high',
       exclude: false,
     },
   ],
