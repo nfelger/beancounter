@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import TransactionList from './components/TransactionList.vue'
 import { money, displayDate, needsReview, type ImportPreview } from './domain/model'
 import { digest } from './domain/import'
 import { validateRulePack, type RulePack } from './domain/rules'
-import { loadGoogle, requestToken, pickSpreadsheet, type GoogleConfig } from './services/google'
+import { pickSpreadsheet, type GoogleConfig } from './services/google'
+import { createGoogleSession } from './services/google-session'
 import {
   SheetsStore,
   googleRequester,
@@ -23,11 +24,9 @@ type View = 'import' | 'transactions' | 'settings'
 const view = ref<View>('import'),
   error = ref(''),
   notice = ref(''),
-  busy = ref(''),
-  googleReady = ref(false)
-const token = ref(''),
-  expiresAt = ref(0),
-  connected = computed(() => !!token.value)
+  busy = ref('')
+const session = createGoogleSession()
+const { connected, ready: googleReady, loading: googleLoading, status: sessionStatus } = session
 const snapshot = shallowRef<Snapshot | null>(null),
   preview = ref<ImportPreview | null>(null)
 const pending = shallowRef<SavePlan | null>(null),
@@ -40,9 +39,7 @@ const config = ref<GoogleConfig>({
 })
 const sheetId = ref(''),
   fatalPending = ref(false)
-const store = new SheetsStore(
-  googleRequester(() => (Date.now() < expiresAt.value - 30000 ? token.value : '')),
-)
+const store = new SheetsStore(googleRequester(session.getToken))
 const locked = computed(() => !!busy.value || !!pending.value || fatalPending.value)
 const categories = computed(() => snapshot.value?.rules?.categories ?? [])
 const excluded = computed(
@@ -60,7 +57,7 @@ const newSpend = computed(
 const receipts = computed(() => snapshot.value?.receipts.slice().reverse() ?? [])
 function report(e: unknown) {
   error.value = e instanceof Error ? e.message : 'Die Aktion ist fehlgeschlagen.'
-  if (e instanceof GoogleError && e.status === 401) token.value = ''
+  if (e instanceof GoogleError && e.status === 401) session.invalidate()
 }
 async function run(label: string, action: () => Promise<void>) {
   if (busy.value) return
@@ -80,8 +77,7 @@ async function rememberConfig() {
     localStorage.setItem('beancounter.config.v1', JSON.stringify(config.value))
     notice.value = 'Einstellungen auf diesem Gerät gespeichert.'
     if (config.value.clientId && !googleReady.value) {
-      await loadGoogle()
-      googleReady.value = true
+      await session.prepare()
     }
   } catch {
     error.value = 'Einstellungen konnten nicht gespeichert werden.'
@@ -95,15 +91,12 @@ async function refresh() {
 async function connect() {
   await run('Verbindung wird hergestellt', async () => {
     if (!googleReady.value) {
-      await loadGoogle()
-      googleReady.value = true
+      await session.prepare()
       notice.value =
         'Google ist bereit. Bitte zum Anmelden noch einmal auf „Mit Google verbinden“ tippen.'
       return
     }
-    const auth = await requestToken(config.value.clientId)
-    token.value = auth.token
-    expiresAt.value = auth.expiresAt
+    await session.authorize(config.value.clientId)
     if (pending.value) sheetId.value = pending.value.spreadsheetId
     if (sheetId.value) await refresh()
     notice.value = 'Mit Google verbunden.'
@@ -120,7 +113,7 @@ async function createSheet() {
 }
 async function chooseSheet() {
   await run('Tabelle auswählen', async () => {
-    const id = await pickSpreadsheet(token.value, config.value)
+    const id = await pickSpreadsheet(session.getToken(), config.value)
     if (!id) return
     const next = await store.load(id)
     sheetId.value = id
@@ -133,8 +126,7 @@ async function chooseSheet() {
 }
 function disconnect() {
   if (locked.value) return
-  token.value = ''
-  expiresAt.value = 0
+  session.disconnect()
   snapshot.value = null
   preview.value = null
   candidateRules.value = null
@@ -268,7 +260,14 @@ function exportBackup() {
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+onUnmounted(() => {
+  window.removeEventListener('focus', session.checkExpiry)
+  document.removeEventListener('visibilitychange', session.checkExpiry)
+  session.disconnect()
+})
 onMounted(async () => {
+  window.addEventListener('focus', session.checkExpiry)
+  document.addEventListener('visibilitychange', session.checkExpiry)
   try {
     const saved = localStorage.getItem('beancounter.config.v1')
     if (saved) {
@@ -285,8 +284,7 @@ onMounted(async () => {
     }
     if (pending.value) sheetId.value = pending.value.spreadsheetId
     if (config.value.clientId) {
-      await loadGoogle()
-      googleReady.value = true
+      await session.prepare()
     }
   } catch (e) {
     report(e)
@@ -345,8 +343,23 @@ onMounted(async () => {
           Verbinde dein Google-Konto, um deine Tabelle zu öffnen und Umsätze von jedem Gerät aus zu
           importieren.
         </p>
-        <button v-if="config.clientId" class="primary" :disabled="!!busy" @click="connect">
-          Mit Google verbinden
+        <p v-if="sessionStatus === 'expired'" class="small muted">
+          Deine Google-Verbindung ist abgelaufen. Verbinde dich erneut; deine Vorschau bleibt
+          erhalten.
+        </p>
+        <button
+          v-if="config.clientId"
+          class="primary"
+          :disabled="!!busy || googleLoading"
+          @click="connect"
+        >
+          {{
+            googleLoading
+              ? 'Google wird geladen …'
+              : googleReady
+                ? 'Mit Google verbinden'
+                : 'Erneut versuchen'
+          }}
         </button>
         <template v-else
           ><p>Vor der ersten Anmeldung muss der Google-Zugang für diese App eingerichtet werden.</p>

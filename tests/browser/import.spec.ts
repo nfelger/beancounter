@@ -26,7 +26,7 @@ async function mockGoogle(page: Page, loseResponse = false) {
   await page.route('https://accounts.google.com/gsi/client', (route) =>
     route.fulfill({
       contentType: 'application/javascript',
-      body: 'window.google={accounts:{oauth2:{initTokenClient:({callback})=>({requestAccessToken:()=>callback({access_token:"test-token",expires_in:3600})})}}}',
+      body: 'window.google={accounts:{oauth2:{hasGrantedAllScopes:()=>true,initTokenClient:({callback})=>({requestAccessToken:()=>callback({access_token:"test-token",expires_in:3600})})}}}',
     }),
   )
   await page.route('https://sheets.googleapis.com/**', async (route) => {
