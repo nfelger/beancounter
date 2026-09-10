@@ -35,6 +35,7 @@ This repository and its deployed static assets are public. Preventing disclosure
 ## Development and delivery
 
 - Work trunk-based: make small, coherent commits directly to `main`. Do not create feature branches or require pull requests.
+- Before implementation, identify commit-sized increments with one purpose each. Implement, verify, review, and commit each increment before starting the next; do not accumulate a whole roadmap milestone into one commit. Keep intermediate commits buildable, with relevant tests alongside the change.
 - Preserve unrelated changes. Do not force-push or rewrite history as routine development.
 - Use a conventional local TypeScript development workflow and maintain the project's chosen package manager and lockfile once established.
 - Configure GitHub Actions to test, build, and deploy successful changes to Pages. Until configured, do not claim these checks or deployment exist.
