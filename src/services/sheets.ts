@@ -30,8 +30,6 @@ export const TX_HEADERS = [
   'payee',
   'category',
   'excluded',
-  'manual_payee',
-  'manual_category',
   'import_id',
   'matched_rule',
   'raw_json',
@@ -174,8 +172,6 @@ export function transactionRow(t: Transaction): Cell[] {
     t.classification.payee,
     t.classification.category,
     t.classification.excluded,
-    t.manualPayee,
-    t.manualCategory,
     t.importId,
     t.classification.matchedRule,
     JSON.stringify(t.raw),
@@ -183,7 +179,7 @@ export function transactionRow(t: Transaction): Cell[] {
 }
 export function readTransaction(r: Cell[]): Transaction {
   try {
-    const raw = JSON.parse(String(r[15]))
+    const raw = JSON.parse(String(r[13]))
     return transactionSchema.parse({
       id: r[0],
       fingerprint: r[1],
@@ -196,11 +192,9 @@ export function readTransaction(r: Cell[]): Transaction {
         payee: r[8],
         category: r[9],
         excluded: r[10],
-        matchedRule: r[14] ?? '',
+        matchedRule: r[12] ?? '',
       },
-      manualPayee: r[11] ?? '',
-      manualCategory: r[12] ?? '',
-      importId: r[13],
+      importId: r[11],
     })
   } catch {
     throw new Error(
@@ -334,7 +328,7 @@ export class SheetsStore {
         )
       ids[name] = sheet.properties.sheetId
     }
-    const ranges = ['Transactions!A:P', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
+    const ranges = ['Transactions!A:N', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
     const values = await this.request<{ valueRanges: { values?: Cell[][] }[] }>(
       `/${spreadsheetId}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER&${ranges.map((r) => 'ranges=' + encodeURIComponent(r)).join('&')}`,
     )
@@ -397,7 +391,7 @@ export class SheetsStore {
         requests: [
           {
             updateCells: {
-              start: { sheetId: snapshot.ids.Transactions, rowIndex: index + 1, columnIndex: 11 },
+              start: { sheetId: snapshot.ids.Transactions, rowIndex: index + 1, columnIndex: 8 },
               rows: [rowData([payee, category])],
               fields: 'userEnteredValue',
             },

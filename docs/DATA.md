@@ -4,18 +4,20 @@ All personal configuration and records live in the private spreadsheet. Public c
 
 ## Tabs
 
-| Tab          | Purpose                                                                                 |
-| ------------ | --------------------------------------------------------------------------------------- |
-| Transactions | Original fields, stable identity, derived classification, and explicit manual overrides |
-| Rules        | Private settings, normalization steps, and ordered declarative rules                    |
-| Imports      | Export identity, coverage dates, counts, and a digest of the rules used                 |
-| Meta         | Schema version, currently 4                                                             |
+| Tab          | Purpose                                                                   |
+| ------------ | ------------------------------------------------------------------------- |
+| Transactions | Original fields, stable identity, and editable payee/category assignments |
+| Rules        | Private settings, normalization steps, and ordered declarative rules      |
+| Imports      | Export identity, coverage dates, counts, and a digest of the rules used   |
+| Meta         | Schema version, currently 4                                               |
 
 The application validates tab names and headers before writing. It does not migrate an arbitrary existing financial spreadsheet. Keep existing pivot workbooks until migration/reporting support is designed.
 
 ### Development resets
 
 Only schema 4 is supported; there is no compatibility or migration path. For an existing development spreadsheet, finish any pending import first and clear the data rows in both Transactions and Imports. Keep Rules and the other headers. Set Transactions E1 to `amount`; clear obsolete columns Q and R if present. Set `schema_version` to `4` in Meta, then reimport the original CSV files. Alternatively, create a new spreadsheet through the app and load your private rules there.
+
+For an existing schema 4 sheet with override columns: copy any non-empty manual payee/category corrections into payee/category first, then delete the entire `manual_payee` and `manual_category` columns (L and M together). Schema version remains 4. The remaining transaction columns run from A to N; the app validates their headers before loading.
 
 ## Transaction identity
 
@@ -37,13 +39,13 @@ The API writes explicit numeric values, avoiding locale-dependent input parsing.
 2. Apply private normalization steps in order.
 3. Evaluate the first enabled matching private rule.
 4. Use the private configured fallback if nothing matches.
-5. Apply any manual payee/category override when displaying or reporting.
+5. Subsequent corrections update payee and category directly; Sheets and the app use the same values.
 
 The Python converter preserves the reference order: exact exclusions, user payee policies, exact historical overrides, context rules, reviewed merchant rules, general merchant rules, and fallbacks.
 
-The review filter shows non-excluded transactions without a matching rule or manual category. A manual category resolves the review item; a payee-only correction does not.
+The review filter shows non-excluded transactions without a matching rule that still have the configured fallback category. Assigning a specific category resolves the review item; a payee-only correction does not. Keeping the fallback category keeps an unmatched transaction in review.
 
-Editing rules affects future imports. Existing stored classifications and manual corrections are preserved; explicit historical reclassification is planned.
+Editing rules affects future imports. Existing assignments are preserved on overlapping reimport.
 
 ## Rules tab
 
@@ -76,7 +78,7 @@ This relies on the agreed single-importer assumption. Do not sort, delete, or ot
 
 ## Corrections and backups
 
-Use the app to change payee/category assignments. Clearing a manual override restores the stored automatic value. Imported source fields and IDs should not be edited directly.
+Use the app or the payee/category cells in Sheets to change assignments directly. There are no separate override columns or automatic values to restore. Imported source fields and IDs should not be edited directly.
 
 The private JSON backup includes transactions, rules, and import receipts. An automatic backup restore interface is not implemented yet. Google Sheets version history and a separately saved export can support manual recovery.
 

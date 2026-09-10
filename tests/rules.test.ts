@@ -13,17 +13,18 @@ describe('private declarative rules', () => {
   })
   it('reviews unmatched transactions until a category is assigned', async () => {
     const t = (await prepareImport(source(), pack, [])).transactions[0]!
-    expect(needsReview(t)).toBe(false)
+    expect(needsReview(t, pack.unknownCategory)).toBe(false)
     t.classification.matchedRule = ''
-    expect(needsReview(t)).toBe(true)
-    t.manualPayee = 'Corrected name'
-    expect(needsReview(t)).toBe(true)
-    t.manualCategory = 'Food'
-    expect(needsReview(t)).toBe(false)
-    t.manualCategory = ''
-    expect(needsReview(t)).toBe(true)
+    t.classification.category = pack.unknownCategory
+    expect(needsReview(t, pack.unknownCategory)).toBe(true)
+    t.classification.payee = 'Corrected name'
+    expect(needsReview(t, pack.unknownCategory)).toBe(true)
+    t.classification.category = 'Food'
+    expect(needsReview(t, pack.unknownCategory)).toBe(false)
+    t.classification.category = pack.unknownCategory
+    expect(needsReview(t, pack.unknownCategory)).toBe(true)
     t.classification.excluded = true
-    expect(needsReview(t)).toBe(false)
+    expect(needsReview(t, pack.unknownCategory)).toBe(false)
   })
   it('normalizes accents, case, whitespace and sharp s', () =>
     expect(asciiUpper('  Grüßé\u00a0  café ')).toBe('GRUSSE CAFE'))

@@ -43,7 +43,7 @@ This repository and its deployed static assets are public. Preventing disclosure
 - Test meaningful failure modes: parsing, encoding, regex/Unicode parity, legitimate repeated transactions, overlapping imports, and uncertain save outcomes.
 - Run `npm run check` and `npm run format:check` before publishing code. The optional browser suite is `npm run test:e2e`; document when browser or live Google validation has not run.
 - Financial data and tokens normally stay in memory. An unconfirmed import alone may be held in tab-scoped sessionStorage for recovery; clear it immediately after verified success. Never store OAuth tokens there or add general persistent financial caching.
-- Preserve original bank fields separately from derived classifications and manual overrides. A rule update must not silently erase a manual correction.
+- Preserve original bank fields separately from classifications. Payee and category each have one authoritative value; corrections update it directly. Rules apply on import, and reimport must preserve existing assignments.
 - Treat imported strings as literal spreadsheet values, not executable formulas. Write dates and amounts as typed numeric cells; read unformatted values independently of sheet locale and display format.
 - During this development stage, prefer resetting and reimporting data over legacy compatibility or migrations unless explicitly requested.
 - Keep architecture, workflow, and privacy requirements here; keep now/next/later priorities in `ROADMAP.md`.

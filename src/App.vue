@@ -42,10 +42,14 @@ const sheetId = ref(''),
 const store = new SheetsStore(googleRequester(session.getToken))
 const locked = computed(() => !!busy.value || !!pending.value || fatalPending.value)
 const categories = computed(() => snapshot.value?.rules?.categories ?? [])
+const unknownCategory = computed(() => snapshot.value?.rules?.unknownCategory ?? '')
 const excluded = computed(
   () => preview.value?.transactions.filter((t) => t.classification.excluded).length ?? 0,
 )
-const reviewCount = computed(() => preview.value?.transactions.filter(needsReview).length ?? 0)
+const reviewCount = computed(
+  () =>
+    preview.value?.transactions.filter((t) => needsReview(t, unknownCategory.value)).length ?? 0,
+)
 const newSpend = computed(
   () =>
     -(
@@ -242,8 +246,8 @@ async function correct(id: string, payee: string, category: string) {
   if (preview.value && view.value === 'import') {
     const tx = preview.value.transactions.find((t) => t.id === id)
     if (tx) {
-      tx.manualPayee = payee
-      tx.manualCategory = category
+      tx.classification.payee = payee
+      tx.classification.category = category
     }
     return
   }
@@ -524,6 +528,7 @@ onMounted(async () => {
           <TransactionList
             :transactions="preview.transactions"
             :categories="categories"
+            :unknown-category="unknownCategory"
             :editable="!locked"
             @correct="correct"
           />
@@ -549,6 +554,7 @@ onMounted(async () => {
             v-if="snapshot"
             :transactions="snapshot.transactions"
             :categories="categories"
+            :unknown-category="unknownCategory"
             :editable="connected && !locked"
             @correct="correct"
           />

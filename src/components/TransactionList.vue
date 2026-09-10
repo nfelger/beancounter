@@ -1,16 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  effectivePayee,
-  effectiveCategory,
-  needsReview,
-  money,
-  displayDate,
-  type Transaction,
-} from '../domain/model'
+import { needsReview, money, displayDate, type Transaction } from '../domain/model'
 const props = defineProps<{
   transactions: Transaction[]
   categories: string[]
+  unknownCategory: string
   editable: boolean
 }>()
 const emit = defineEmits<{ correct: [id: string, payee: string, category: string] }>()
@@ -23,14 +17,19 @@ const search = ref(''),
 const filtered = computed(() =>
   props.transactions
     .filter((t) => {
-      const text = [effectivePayee(t), effectiveCategory(t), t.raw.rawPayee, t.raw.purpose]
+      const text = [
+        t.classification.payee,
+        t.classification.category,
+        t.raw.rawPayee,
+        t.raw.purpose,
+      ]
         .join(' ')
         .toLocaleLowerCase()
       return (
         text.includes(search.value.toLocaleLowerCase()) &&
         (filter.value === 'all' ||
           (filter.value === 'excluded' && t.classification.excluded) ||
-          (filter.value === 'review' && needsReview(t)))
+          (filter.value === 'review' && needsReview(t, props.unknownCategory)))
       )
     })
     .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate)),
@@ -42,8 +41,8 @@ watch([search, filter, () => props.transactions], () => {
 })
 function edit(t: Transaction) {
   editing.value = t.id
-  payee.value = t.manualPayee
-  category.value = t.manualCategory
+  payee.value = t.classification.payee
+  category.value = t.classification.category
 }
 function submit() {
   emit('correct', editing.value, payee.value.trim(), category.value)
@@ -76,9 +75,9 @@ function submit() {
     >
       <div class="tx-main">
         <div>
-          <strong>{{ effectivePayee(t) }}</strong
+          <strong>{{ t.classification.payee }}</strong
           ><span class="tx-meta"
-            >{{ displayDate(t.bookingDate) }} · {{ effectiveCategory(t) }}</span
+            >{{ displayDate(t.bookingDate) }} · {{ t.classification.category }}</span
           >
         </div>
         <strong class="amount" :class="{ credit: t.amountMinor > 0 }">{{
@@ -87,8 +86,9 @@ function submit() {
       </div>
       <div class="tx-foot">
         <span v-if="t.classification.excluded" class="badge">Ausgeschlossen</span>
-        <span v-else-if="needsReview(t)" class="badge review">Zuordnung prüfen</span>
-        <span v-else-if="t.manualPayee || t.manualCategory" class="badge">Manuell zugeordnet</span>
+        <span v-else-if="needsReview(t, props.unknownCategory)" class="badge review"
+          >Zuordnung prüfen</span
+        >
         <details>
           <summary>Original anzeigen</summary>
           <dl>
@@ -110,14 +110,11 @@ function submit() {
       </div>
       <form v-if="editing === t.id" class="edit-form" @submit.prevent="submit">
         <label
-          >Empfänger überschreiben<input
-            v-model="payee"
-            :placeholder="t.classification.payee"
-            maxlength="1000"
+          >Empfänger<input v-model="payee" :placeholder="t.classification.payee" maxlength="1000"
         /></label>
         <label
-          >Kategorie überschreiben<select v-model="category">
-            <option value="">Automatisch: {{ t.classification.category }}</option>
+          >Kategorie<select v-model="category">
+            <option v-if="!categories.includes(category)" :value="category">{{ category }}</option>
             <option v-for="c in categories" :key="c">{{ c }}</option>
           </select></label
         >
@@ -125,7 +122,6 @@ function submit() {
           <button class="primary" :disabled="!editable">Übernehmen</button
           ><button type="button" class="secondary" @click="editing = ''">Abbrechen</button>
         </div>
-        <p class="small muted">Leere Felder verwenden wieder die automatische Zuordnung.</p>
       </form>
     </article>
     <p v-if="!filtered.length" class="empty">Keine passenden Buchungen.</p>

@@ -22,7 +22,7 @@ describe('safe Sheets writes', () => {
     await new SheetsStore(request as Requester).create()
     const body = JSON.parse(request.mock.calls[0]![1].body)
     expect(body.properties.locale).toBe('de_DE')
-    expect(body.sheets[0].properties.gridProperties.columnCount).toBe(16)
+    expect(body.sheets[0].properties.gridProperties.columnCount).toBe(14)
     expect(body.sheets[3].data[0].rowData[1].values[1].userEnteredValue.stringValue).toBe('4')
   })
   it('retains a plan across reload and clears it after confirmation without storing a token', async () => {
@@ -68,7 +68,7 @@ describe('safe Sheets writes', () => {
     const body = JSON.parse(request.mock.calls[0]![1].body)
     expect(body.requests).toHaveLength(2)
     expect(body.requests[0].updateCells.start.rowIndex).toBe(1)
-    expect(body.requests[0].updateCells.rows[0].values[15].userEnteredValue.stringValue).toContain(
+    expect(body.requests[0].updateCells.rows[0].values[13].userEnteredValue.stringValue).toContain(
       'IMPORTXML',
     )
     expect(JSON.stringify(body)).not.toContain('formulaValue')
@@ -83,7 +83,7 @@ describe('safe Sheets writes', () => {
     await store.save(plan)
     const updates = JSON.parse(request.mock.calls[0]![1].body).requests
     const cells = updates[0].updateCells.rows[0].values
-    expect(cells).toHaveLength(16)
+    expect(cells).toHaveLength(14)
     expect(TX_HEADERS.filter((h) => h.startsWith('amount'))).toEqual(['amount'])
     expect(cells[4].userEnteredValue).toEqual({ numberValue: -1234.56 })
     expect(cells[4].userEnteredFormat.numberFormat.pattern).toBe('#,##0.00 "€"')
@@ -147,10 +147,10 @@ describe('safe Sheets writes', () => {
   })
   it('round-trips transaction cells preserving original strings and corrections', async () => {
     const t = (await prepareImport(source(), pack, [])).transactions[0]!
-    t.manualPayee = 'Manual name'
+    t.classification.payee = 'Manual name'
     expect(readTransaction(transactionRow(t))).toEqual(t)
   })
-  it('writes corrections to the manual columns without shifting other fields', async () => {
+  it('writes corrections directly to payee and category without shifting other fields', async () => {
     const transactions = (await prepareImport(source(), pack, [])).transactions
     const request = vi.fn().mockResolvedValue({})
     await new SheetsStore(request as Requester).correct(
@@ -160,11 +160,19 @@ describe('safe Sheets writes', () => {
       'Travel',
     )
     const update = JSON.parse(request.mock.calls[0]![1].body).requests[0].updateCells
-    expect(update.start).toEqual({ sheetId: 0, rowIndex: 1, columnIndex: 11 })
+    expect(update.start).toEqual({ sheetId: 0, rowIndex: 1, columnIndex: 8 })
     expect(update.rows[0].values).toEqual([
       { userEnteredValue: { stringValue: 'Manual name' } },
       { userEnteredValue: { stringValue: 'Travel' } },
     ])
+    const row = transactionRow(transactions[0]!)
+    row.splice(update.start.columnIndex, 2, 'Manual name', 'Travel')
+    const restored = readTransaction(row)
+    expect(restored.classification.payee).toBe('Manual name')
+    expect(restored.classification.category).toBe('Travel')
+    expect(restored.raw).toEqual(transactions[0]!.raw)
+    expect(restored.importId).toBe(transactions[0]!.importId)
+    expect(restored.classification.matchedRule).toBe(transactions[0]!.classification.matchedRule)
   })
   it.each([
     { version: '4', headers: TX_HEADERS, valid: true },

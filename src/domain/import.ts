@@ -30,8 +30,6 @@ export async function prepareImport(
       amountMinor: parseGermanAmount(raw.rawAmount),
       raw: { ...raw },
       classification: classify(raw),
-      manualPayee: '',
-      manualCategory: '',
       importId: '',
     })
   }

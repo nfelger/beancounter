@@ -33,9 +33,9 @@ describe('overlap reconciliation', () => {
   })
   it('does not overwrite manual assignments on reimport', async () => {
     const first = await prepareImport(source(), pack, [])
-    first.transactions[0]!.manualCategory = 'Travel'
+    first.transactions[0]!.classification.category = 'Travel'
     const second = await prepareImport(source(), pack, first.transactions)
     expect(second.transactions).toHaveLength(0)
-    expect(first.transactions[0]!.manualCategory).toBe('Travel')
+    expect(first.transactions[0]!.classification.category).toBe('Travel')
   })
 })

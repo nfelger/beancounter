@@ -30,8 +30,6 @@ export const transactionSchema = z.object({
   amountMinor: z.number().int().safe(),
   raw: rawSchema,
   classification: classificationSchema,
-  manualPayee: text,
-  manualCategory: text,
   importId: text,
 })
 export type Transaction = z.infer<typeof transactionSchema>
@@ -65,14 +63,12 @@ export interface ImportPreview {
   repeated: number
   rulesDigest: string
 }
-export function effectivePayee(t: Transaction) {
-  return t.manualPayee || t.classification.payee
-}
-export function effectiveCategory(t: Transaction) {
-  return t.manualCategory || t.classification.category
-}
-export function needsReview(t: Transaction): boolean {
-  return !t.classification.excluded && !t.classification.matchedRule && !t.manualCategory
+export function needsReview(t: Transaction, unknownCategory: string): boolean {
+  return (
+    !t.classification.excluded &&
+    !t.classification.matchedRule &&
+    t.classification.category === unknownCategory
+  )
 }
 export function money(minor: number, currency = 'EUR') {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency }).format(minor / 100)
