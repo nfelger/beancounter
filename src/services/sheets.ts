@@ -7,7 +7,14 @@ import {
   type ImportPreview,
 } from '../domain/model'
 import { validateRulePack, type RulePack } from '../domain/rules'
-import { sheetDate, sheetInteger, sheetTimestamp } from './sheet-values'
+import {
+  dateSerial,
+  timestampSerial,
+  sheetDate,
+  sheetInteger,
+  sheetTimestamp,
+} from './sheet-values'
+import { parseGermanDate } from '../domain/csv'
 import { receiptFor } from '../domain/import'
 
 export const TX_HEADERS = [
@@ -27,6 +34,8 @@ export const TX_HEADERS = [
   'import_id',
   'matched_rule',
   'raw_json',
+  'amount',
+  'value_date',
 ]
 export const RULE_HEADERS = ['kind', 'order', 'enabled', 'spec_json']
 export const IMPORT_HEADERS = [
@@ -103,11 +112,32 @@ export function googleRequester(token: () => string): Requester {
     return response.json() as Promise<T>
   }
 }
-function rowData(values: Cell[]) {
+type NumberFormat = { type: 'DATE' | 'DATE_TIME' | 'NUMBER'; pattern: string }
+const DATE_FORMAT: NumberFormat = { type: 'DATE', pattern: 'dd.mm.yyyy' }
+const EURO_FORMAT: NumberFormat = { type: 'NUMBER', pattern: '#,##0.00 "€"' }
+const INTEGER_FORMAT: NumberFormat = { type: 'NUMBER', pattern: '0' }
+const TX_FORMATS: Record<number, NumberFormat> = {
+  2: INTEGER_FORMAT,
+  3: DATE_FORMAT,
+  4: INTEGER_FORMAT,
+  16: EURO_FORMAT,
+  17: DATE_FORMAT,
+}
+const IMPORT_FORMATS: Record<number, NumberFormat> = {
+  1: { type: 'DATE_TIME', pattern: 'yyyy-mm-dd hh:mm:ss "UTC"' },
+  4: DATE_FORMAT,
+  5: DATE_FORMAT,
+  6: INTEGER_FORMAT,
+  7: INTEGER_FORMAT,
+  8: INTEGER_FORMAT,
+  9: INTEGER_FORMAT,
+}
+function rowData(values: Cell[], formats: Record<number, NumberFormat> = {}) {
   if (values.some((v) => typeof v === 'string' && v.length > 45000))
     throw new Error('Ein Feld ist zu lang für Google Sheets.')
   return {
-    values: values.map((value) => ({
+    values: values.map((value, index) => ({
+      ...(formats[index] ? { userEnteredFormat: { numberFormat: formats[index] } } : {}),
       userEnteredValue:
         typeof value === 'number'
           ? { numberValue: value }
@@ -117,12 +147,19 @@ function rowData(values: Cell[]) {
     })),
   }
 }
-function putRows(sheetId: number, startRowIndex: number, rows: Cell[][]) {
+function putRows(
+  sheetId: number,
+  startRowIndex: number,
+  rows: Cell[][],
+  formats: Record<number, NumberFormat> = {},
+) {
   return {
     updateCells: {
       start: { sheetId, rowIndex: startRowIndex, columnIndex: 0 },
-      rows: rows.map(rowData),
-      fields: 'userEnteredValue',
+      rows: rows.map((r) => rowData(r, formats)),
+      fields: Object.keys(formats).length
+        ? 'userEnteredValue,userEnteredFormat.numberFormat'
+        : 'userEnteredValue',
     },
   }
 }
@@ -131,7 +168,7 @@ export function transactionRow(t: Transaction): Cell[] {
     t.id,
     t.fingerprint,
     t.occurrence,
-    t.bookingDate,
+    dateSerial(t.bookingDate),
     t.amountMinor,
     t.raw.currency,
     t.raw.rawPayee,
@@ -144,17 +181,20 @@ export function transactionRow(t: Transaction): Cell[] {
     t.importId,
     t.classification.matchedRule,
     JSON.stringify(t.raw),
+    t.amountMinor / 100,
+    dateSerial(parseGermanDate(t.raw.valueDate)),
   ]
 }
 export function readTransaction(r: Cell[]): Transaction {
   try {
+    const raw = JSON.parse(String(r[15]))
     return transactionSchema.parse({
       id: r[0],
       fingerprint: r[1],
       occurrence: sheetInteger(r[2]),
       bookingDate: sheetDate(r[3]),
       amountMinor: sheetInteger(r[4]),
-      raw: JSON.parse(String(r[15])),
+      raw,
       classification: {
         normalized: r[7],
         payee: r[8],
@@ -175,11 +215,11 @@ export function readTransaction(r: Cell[]): Transaction {
 function receiptRow(r: ImportReceipt): Cell[] {
   return [
     r.id,
-    r.importedAt,
+    timestampSerial(r.importedAt),
     r.filename,
     r.account,
-    r.periodStart,
-    r.periodEnd,
+    dateSerial(r.periodStart),
+    dateSerial(r.periodEnd),
     r.parsed,
     r.added,
     r.duplicates,
@@ -272,7 +312,7 @@ export class SheetsStore {
               startColumn: 0,
               rowData: [
                 rowData(headers),
-                ...(title === 'Meta' ? [rowData(['schema_version', '2'])] : []),
+                ...(title === 'Meta' ? [rowData(['schema_version', '3'])] : []),
               ],
             },
           ],
@@ -285,7 +325,9 @@ export class SheetsStore {
     if (!/^[\w-]+$/.test(spreadsheetId)) throw new Error('Ungültige Tabellenkennung.')
     const meta = await this.request<{
       properties: { title: string }
-      sheets: { properties: { title: string; sheetId: number } }[]
+      sheets: {
+        properties: { title: string; sheetId: number }
+      }[]
     }>(`/${spreadsheetId}?fields=properties.title,sheets.properties(sheetId,title)`)
     const ids = {} as Record<Tab, number>
     for (const name of Object.keys(tabs) as Tab[]) {
@@ -296,15 +338,16 @@ export class SheetsStore {
         )
       ids[name] = sheet.properties.sheetId
     }
-    const ranges = ['Transactions!A:P', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
+    const ranges = ['Transactions!A:R', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
     const values = await this.request<{ valueRanges: { values?: Cell[][] }[] }>(
       `/${spreadsheetId}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER&${ranges.map((r) => 'ranges=' + encodeURIComponent(r)).join('&')}`,
     )
-    const [tx, rules, imports, settings] = (Object.keys(tabs) as Tab[]).map((name, i) =>
+    const settings = checkRows(values.valueRanges[3]?.values ?? [], META_HEADERS)
+    if (String(settings.find((r) => r[0] === 'schema_version')?.[1]) !== '3')
+      throw new Error('Nicht unterstützte Tabellenversion.')
+    const [tx, rules, imports] = (['Transactions', 'Rules', 'Imports'] as const).map((name, i) =>
       checkRows(values.valueRanges[i]?.values ?? [], tabs[name]),
     )
-    if (!settings?.some((r) => r[0] === 'schema_version' && String(r[1]) === '2'))
-      throw new Error('Nicht unterstützte Tabellenversion.')
     const transactions = tx!.map(readTransaction),
       receipts = imports!.map(readReceipt)
     if (new Set(transactions.map((t) => t.id)).size !== transactions.length)
@@ -337,7 +380,7 @@ export class SheetsStore {
                 startColumnIndex: 0,
                 endColumnIndex: 4,
               },
-              rows: rows.map(rowData),
+              rows: rows.map((r) => rowData(r)),
               fields: 'userEnteredValue',
             },
           },
@@ -387,9 +430,12 @@ export function saveBody(plan: SavePlan): string {
         plan.transactionSheetId,
         plan.transactionStart,
         plan.transactions.map(transactionRow),
+        TX_FORMATS,
       ),
     )
-  requests.push(putRows(plan.importSheetId, plan.importStart, [receiptRow(plan.receipt)]))
+  requests.push(
+    putRows(plan.importSheetId, plan.importStart, [receiptRow(plan.receipt)], IMPORT_FORMATS),
+  )
   const body = JSON.stringify({ requests })
   if (new TextEncoder().encode(body).length > 1_800_000)
     throw new Error('Import zu groß. Bitte einen kürzeren Exportzeitraum wählen.')

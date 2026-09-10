@@ -67,6 +67,48 @@ describe('safe Sheets writes', () => {
     await store.save(plan)
     expect(request.mock.calls[1]![1].body).toBe(request.mock.calls[0]![1].body)
   })
+  it('round-trips German CSV amounts and typed dates independently of Sheets formatting', async () => {
+    const preview = await prepareImport(source([{ ...raw, rawAmount: '-1.234,56' }]), pack, [])
+    const plan = createSavePlan(snapshot(), preview)
+    const request = vi.fn().mockResolvedValue({})
+    const store = new SheetsStore(request as Requester)
+    await store.save(plan)
+    const updates = JSON.parse(request.mock.calls[0]![1].body).requests
+    const cells = updates[0].updateCells.rows[0].values
+    expect(cells[4].userEnteredValue).toEqual({ numberValue: -123456 })
+    expect(cells[16].userEnteredValue).toEqual({ numberValue: -1234.56 })
+    expect(cells[16].userEnteredFormat.numberFormat.pattern).toBe('#,##0.00 "€"')
+    for (const index of [3, 17]) {
+      expect(typeof cells[index].userEnteredValue.numberValue).toBe('number')
+      expect(cells[index].userEnteredFormat.numberFormat.type).toBe('DATE')
+    }
+    const receiptCells = updates[1].updateCells.rows[0].values
+    for (const index of [1, 4, 5, 6, 7, 8, 9])
+      expect(typeof receiptCells[index].userEnteredValue.numberValue).toBe('number')
+    const underlying = (values: { userEnteredValue: Record<string, unknown> }[]) =>
+      values.map((cell) => Object.values(cell.userEnteredValue)[0])
+    request
+      .mockResolvedValueOnce({
+        properties: { title: 'Test' },
+        sheets: ['Transactions', 'Rules', 'Imports', 'Meta'].map((title, sheetId) => ({
+          properties: { title, sheetId },
+        })),
+      })
+      .mockResolvedValueOnce({
+        valueRanges: [
+          { values: [TX_HEADERS, underlying(cells)] },
+          { values: [RULE_HEADERS, ...ruleRows(pack)] },
+          { values: [IMPORT_HEADERS, underlying(receiptCells)] },
+          { values: [META_HEADERS, ['schema_version', '3']] },
+        ],
+      })
+    const loaded = await store.load('test-sheet')
+    expect(loaded.transactions).toEqual(plan.transactions)
+    expect(loaded.receipts).toEqual([plan.receipt])
+    const readUrl = request.mock.calls[2]![0]
+    expect(readUrl).toContain('valueRenderOption=UNFORMATTED_VALUE')
+    expect(readUrl).toContain('dateTimeRenderOption=SERIAL_NUMBER')
+  })
   it('recognizes success after the response is lost, without appending again', async () => {
     const preview = await prepareImport(source(), pack, []),
       plan = createSavePlan(snapshot(), preview)
@@ -118,8 +160,8 @@ describe('safe Sheets writes', () => {
     ])
   })
   it.each([
-    { version: '2', headers: TX_HEADERS, valid: true },
-    { version: '1', headers: TX_HEADERS, valid: false },
+    { version: '3', headers: TX_HEADERS, valid: true },
+    { version: '2', headers: TX_HEADERS.slice(0, 16), valid: false },
     {
       version: '2',
       headers: [...TX_HEADERS.slice(0, 10), 'confidence', ...TX_HEADERS.slice(10)],
