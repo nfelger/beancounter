@@ -7,6 +7,7 @@ import {
   type ImportPreview,
 } from '../domain/model'
 import { validateRulePack, type RulePack } from '../domain/rules'
+import { sheetDate, sheetInteger, sheetTimestamp } from './sheet-values'
 import { receiptFor } from '../domain/import'
 
 export const TX_HEADERS = [
@@ -150,9 +151,9 @@ export function readTransaction(r: Cell[]): Transaction {
     return transactionSchema.parse({
       id: r[0],
       fingerprint: r[1],
-      occurrence: r[2],
-      bookingDate: r[3],
-      amountMinor: r[4],
+      occurrence: sheetInteger(r[2]),
+      bookingDate: sheetDate(r[3]),
+      amountMinor: sheetInteger(r[4]),
       raw: JSON.parse(String(r[15])),
       classification: {
         normalized: r[7],
@@ -189,15 +190,15 @@ function receiptRow(r: ImportReceipt): Cell[] {
 function readReceipt(r: Cell[]): ImportReceipt {
   const result = importSchema.safeParse({
     id: r[0],
-    importedAt: r[1],
+    importedAt: sheetTimestamp(r[1]),
     filename: r[2],
     account: r[3],
-    periodStart: r[4],
-    periodEnd: r[5],
-    parsed: r[6],
-    added: r[7],
-    duplicates: r[8],
-    excluded: r[9],
+    periodStart: sheetDate(r[4]),
+    periodEnd: sheetDate(r[5]),
+    parsed: sheetInteger(r[6]),
+    added: sheetInteger(r[7]),
+    duplicates: sheetInteger(r[8]),
+    excluded: sheetInteger(r[9]),
     rulesDigest: r[10],
   })
   if (!result.success) throw new Error('Importverlauf hat ein ungültiges Format.')
@@ -230,13 +231,13 @@ function readRules(rows: Cell[][]): RulePack | null {
       rows.some(
         (r) =>
           !['settings', 'normalize', 'rule'].includes(String(r[0])) ||
-          !Number.isInteger(r[1]) ||
+          !Number.isInteger(sheetInteger(r[1])) ||
           typeof r[2] !== 'boolean',
       )
     )
       throw new Error()
     const sorted = (kind: string) =>
-      rows.filter((r) => r[0] === kind).sort((a, b) => Number(a[1]) - Number(b[1]))
+      rows.filter((r) => r[0] === kind).sort((a, b) => sheetInteger(a[1]) - sheetInteger(b[1]))
     return validateRulePack({
       ...JSON.parse(String(settings[0]![3])),
       normalizers: sorted('normalize')
@@ -297,7 +298,7 @@ export class SheetsStore {
     }
     const ranges = ['Transactions!A:P', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
     const values = await this.request<{ valueRanges: { values?: Cell[][] }[] }>(
-      `/${spreadsheetId}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&${ranges.map((r) => 'ranges=' + encodeURIComponent(r)).join('&')}`,
+      `/${spreadsheetId}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER&${ranges.map((r) => 'ranges=' + encodeURIComponent(r)).join('&')}`,
     )
     const [tx, rules, imports, settings] = (Object.keys(tabs) as Tab[]).map((name, i) =>
       checkRows(values.valueRanges[i]?.values ?? [], tabs[name]),
