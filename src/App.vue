@@ -172,6 +172,13 @@ async function readRules(event: Event) {
     selectedRulesName.value = file.name
   })
 }
+async function formatRuleSheet() {
+  await run('Regeltabelle wird eingerichtet', async () => {
+    await refresh()
+    if (snapshot.value) await store.formatRules(snapshot.value)
+    notice.value = 'Dropdowns, Checkboxen und Filter eingerichtet.'
+  })
+}
 async function saveRules() {
   await run('Regeln werden gespeichert', async () => {
     if (!candidateRules.value || !snapshot.value) return
@@ -625,6 +632,31 @@ onMounted(async () => {
           <p v-if="snapshot.rules">
             {{ snapshot.rules.rules.length }} Regeln ·
             {{ snapshot.rules.normalizers.length }} Bereinigungsschritte
+          </p>
+          <p class="muted">
+            Einfache Regeln direkt im Tabellenblatt Rules bearbeiten: simple_rule wählen,
+            Reihenfolge und Aktivierung setzen, dann Muster, Empfänger oder Kategorie eintragen. Das
+            Muster muss den gesamten normalisierten Empfänger treffen; .* erweitert den Treffer.
+          </p>
+          <div class="actions">
+            <a
+              :href="
+                'https://docs.google.com/spreadsheets/d/' +
+                snapshot.spreadsheetId +
+                '/edit#gid=' +
+                snapshot.ids.Rules
+              "
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-link"
+              >Regeln in Google Sheets öffnen ↗</a
+            >
+            <button class="secondary" :disabled="locked || !connected" @click="formatRuleSheet">
+              Dropdowns und Checkboxen einrichten
+            </button>
+          </div>
+          <p class="small muted">
+            Beim nächsten CSV-Upload werden die aktuellen Regeln aus der Tabelle geladen.
           </p>
           <label class="upload" :class="{ disabled: locked || !connected }"
             >Regeldatei auswählen<input

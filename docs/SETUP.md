@@ -61,6 +61,14 @@ In the app, select **Einstellungen → Private Zuordnungsregeln → Regeldatei a
 
 The actual rules are not supplied in this repository. Never add the export or original script to Git, even temporarily. The converter rejects input/output paths within the checkout.
 
+## Edit rules in Sheets
+
+For an existing table, add Rules headers **E1 `pattern`, F1 `payee`, G1 `category`**. Keep columns A–D and their JSON values in place. New tables already have the seven headers; schema version remains 4.
+
+In **Einstellungen → Private Zuordnungsregeln**, choose **Dropdowns und Checkboxen einrichten**, then **Regeln in Google Sheets öffnen**. You can add `simple_rule` rows with a whole-field regex against normalized payees and literal payee/category assignments, without editing JSON. Existing full JSON rules continue to work. [Rule syntax and examples](DATA.md#simple-rules).
+
+Use distinct numeric priorities shared by simple and JSON rules. Check `enabled` when a row is ready. Errors identify the affected cell without revealing its contents. After editing, upload the CSV again to get a fresh preview.
+
 ## Recovery and limits
 
 - If a save's outcome is uncertain, keep the browser tab open and use **Status prüfen und fortsetzen**. If necessary, reconnect Google first.

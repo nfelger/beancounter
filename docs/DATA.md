@@ -49,17 +49,39 @@ Editing rules affects future imports. Existing assignments are preserved on over
 
 ## Rules tab
 
-Columns: `kind`, `order`, `enabled`, `spec_json`.
+Columns A–G: `kind`, `order`, `enabled`, `spec_json`, `pattern`, `payee`, `category`. Existing tables need E1 `pattern`, F1 `payee`, G1 `category` (add columns if needed). Keep existing JSON in D; leave E–G blank for those rows. Schema version remains 4.
 
 - Exactly one `settings` row defines schema version, categories, fallback labels, and country extraction configuration.
 - `normalize` rows define replacement or terminal normalization steps. Order is numeric.
-- `rule` rows define conditions and a result. Order is numeric. `enabled` is a spreadsheet boolean.
+- `rule` rows define conditions and a result in `spec_json`; `simple_rule` rows use the cells in E–G instead. Both share one numeric order: smaller first, first matching enabled rule wins. Duplicate priorities are rejected, including disabled rows. Normalization has its own order.
+- `enabled` is a spreadsheet boolean/checkbox. Entirely blank rows are ignored; incomplete rows are rejected with a cell address. Filtering or moving rows does not change priority.
 - A rule's conditions are combined with AND. Fields are `normalized`, `bookingTextNorm`, `purposeNorm`, `foreign`, or an exact `key`.
 - Operators are `eq`, `search`, and `full`. The last two interpret a JavaScript regular expression; no expression is executed as JavaScript code.
 - Results may specify a payee, use the normalized descriptor, set a category, or exclude the transaction.
 - The converter's exact `key` is a serialized seven-field identity; do not hand-author approximate matches for historical exceptions.
 
-Use the private exporter for initial setup. Until the rule editor exists, carefully edit rows directly in Sheets. Normalizer replacement values are literal strings, not backreference expressions. The schema supports the supplied reference; arbitrary Python regex features are not promised to be portable.
+Use the private exporter for initial setup, then edit rules directly in Sheets. Normalizer replacement values are literal strings, not backreference expressions. The schema supports the supplied reference; arbitrary Python regex features are not promised to be portable.
+
+### Simple rules
+
+Set `kind` to `simple_rule`, give it a unique `order`, enable it, and leave `spec_json` empty:
+
+| pattern      | payee    | category |
+| ------------ | -------- | -------- |
+| `MOONBEAN.*` | Moonbean | Food     |
+| `RAILWAY`    |          | Travel   |
+
+These examples are invented. Use your own patterns and configured categories only in your private sheet.
+
+- Patterns match the **whole normalized bank payee**, case-insensitively, after cleanup/normalization. Use `.*` explicitly to allow a prefix/suffix. JavaScript regex syntax applies; enter a single backslash for regex escapes, without JSON escaping or `/…/` delimiters.
+- Outputs are literal text, not regex substitutions. Leave payee blank to use the normalized payee; leave category blank to use the configured fallback. At least one assignment must be present.
+- A payee-only rule still stops matching. A later category rule does not supplement it.
+- Full JSON rules retain `search`, `full`, multiple conditions, and exclusions. Use those for complex cases; E–G must remain empty.
+- Simple rules retain their sheet representation when a loaded pack is validated and saved again. The compiled pack uses `sheetFormat: "simple_rule"` to preserve this information; no extra authoring ID is needed. Generated match IDs follow position in the sorted rule list.
+
+In app settings, **Dropdowns und Checkboxen einrichten** installs rule-kind/category dropdowns, enabled checkboxes, header notes, filtering, and plain-text formatting for D–G. It preserves cell values. Run it again after changing configured categories. Loading and saving a rule file also installs these controls; it replaces the rule set as indicated by the confirmation button.
+
+Rules are read afresh for each CSV preview and checked again before saving. Existing imported assignments do not change. If a rule changed during preview, upload the CSV again to review its effect.
 
 Rule evaluation runs in a worker with a timeout so an expensive regex cannot indefinitely freeze the interface.
 

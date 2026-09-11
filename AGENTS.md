@@ -12,6 +12,7 @@ These instructions apply to the entire repository. See [ROADMAP.md](ROADMAP.md) 
 - Use Google accounts, OAuth consent, and spreadsheet sharing permissions for access. Prefer `drive.file` with an app-created spreadsheet or Google Picker for an existing spreadsheet.
 - Run CSV parsing, generic cleanup, rule evaluation, and reporting in the browser.
 - Keep transactions, regex rules, personal normalization mappings, classification/exclusion rules, transaction exceptions, budgets, and import history in the private spreadsheet.
+- Simple spreadsheet rules use `simple_rule` and whole-field, case-insensitive matching against normalized payees. Share first-match ordering with JSON rules; keep simple rules editable as cells when saved.
 - Load private rules only at runtime after Google authorization. The public app contains the generic processing engine and rule schema, not the user's rule values.
 - Do not introduce Apps Script, a custom backend, SQLite, GitHub login, or offline write synchronization.
 - Design for one importer for now. Concurrent writes are out of scope; duplicate detection and recovery after uncertain writes are required.

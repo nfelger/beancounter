@@ -17,6 +17,7 @@ import {
   sheetTimestamp,
 } from './sheet-values'
 import { receiptFor } from '../domain/import'
+import { ruleSheetControls } from './rule-sheet-controls'
 
 export const TX_HEADERS = [
   'id',
@@ -320,13 +321,23 @@ export class SheetsStore {
       ruleRows: rules!.length + 1,
     }
   }
+  async formatRules(snapshot: Snapshot) {
+    await this.request(`/${snapshot.spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: ruleSheetControls(snapshot.ids.Rules, snapshot.rules?.categories ?? []),
+      }),
+    })
+  }
   async replaceRules(snapshot: Snapshot, pack: RulePack) {
-    const rows = [RULE_HEADERS, ...ruleRows(validateRulePack(pack))]
+    const validated = validateRulePack(pack)
+    const rows = [RULE_HEADERS, ...ruleRows(validated)]
     // Range-based update clears trailing old entries atomically.
     await this.request(`/${snapshot.spreadsheetId}:batchUpdate`, {
       method: 'POST',
       body: JSON.stringify({
         requests: [
+          ...ruleSheetControls(snapshot.ids.Rules, validated.categories),
           {
             updateCells: {
               range: {

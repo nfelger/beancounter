@@ -31,7 +31,7 @@ Deliver one complete flow: connect a spreadsheet, choose an ING CSV on a phone, 
 - [x] Port the generic processing engine from the latest supplied Python reference; load all personal matching, normalization, classification, exclusion, and exception rules from the private spreadsheet.
 - [x] Verify Python/JavaScript regex and Unicode behaviour with representative examples.
 - [x] Provide a private way to import the supplied rules and exceptions into the spreadsheet; never add their contents to the repository or app bundle.
-- [x] Preserve original bank fields separately from automatic payee/category assignments, match information, and manual overrides.
+- [x] Preserve original bank fields separately from editable payee/category assignments and match information.
 - [x] Preview new, duplicate, excluded, unmatched, and invalid entries before confirmation.
 - [x] Save imported text as literal values, not spreadsheet formulas.
 
@@ -42,7 +42,7 @@ Deliver one complete flow: connect a spreadsheet, choose an ING CSV on a phone, 
 - [x] Use bank references where reliable, and preserve the multiplicity of legitimately identical transactions. Flag ambiguity instead of silently deleting entries.
 - [x] Record stable import identifiers and reconcile uncertain write outcomes before retrying.
 - [x] Record import time, source file, account, declared export period, and outcome counts.
-- [x] Provide a transaction list with basic payee/category corrections; manual overrides take precedence over automatic results.
+- [x] Provide a transaction list with basic payee/category corrections; corrections update the authoritative values directly.
 - [x] Document recovery/export options and the limits of the single-importer assumption.
 
 - [ ] Verify the real OAuth flow, a first import and overlapping reimport, and cross-device access.
@@ -56,8 +56,9 @@ Deliver one complete flow: connect a spreadsheet, choose an ING CSV on a phone, 
 - [ ] Show a category-by-month table with totals.
 - [ ] Calculate app reports from transactions rather than depending on the layout of existing spreadsheet pivot tables.
 - [x] Offer a review queue for unmatched classifications (transaction-list filter).
-- [ ] Add a regex rule editor with explicit ordering, validation, sample matches, and an impact preview.
-- [ ] Support explicit reclassification of historical transactions while preserving manual overrides.
+- [x] Support spreadsheet CRUD for simple regex rules alongside full JSON rules, with explicit ordering and validation.
+- [ ] Assess whether sample-match testing and impact previews need additional UI; defer an app rule editor until spreadsheet editing proves insufficient.
+- [ ] Support explicit reclassification of historical transactions with an explicit policy for preserving corrected assignments.
 - [ ] Establish report semantics for income, refunds/reimbursements, internal transfers, excluded transactions, and cash withdrawals.
 - [ ] Track import coverage per account and display the reporting cutoff. A latest transaction date is not proof of complete coverage.
 
