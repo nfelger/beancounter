@@ -16,6 +16,7 @@ export const normalizerSchema = z.object({
 })
 export const ruleSchema = z.object({
   id: z.string().min(1).max(100),
+  sheetFormat: z.literal('simple_rule').optional(),
   enabled: z.boolean().default(true),
   conditions: z.array(conditionSchema).min(1).max(20),
   payee: z.string().max(1000).optional(),
@@ -72,7 +73,22 @@ export function validateRulePack(value: unknown): RulePack {
     for (const r of pack.rules) {
       if (ids.has(r.id)) throw new Error()
       ids.add(r.id)
-      if (!r.exclude && (!r.category || !pack.categories.includes(r.category))) throw new Error()
+      if (r.sheetFormat === 'simple_rule') {
+        const c = r.conditions[0]
+        if (
+          r.exclude ||
+          r.useNormalized ||
+          r.conditions.length !== 1 ||
+          c?.field !== 'normalized' ||
+          c.op !== 'full' ||
+          typeof c.value !== 'string' ||
+          !c.value ||
+          (!r.payee && !r.category)
+        )
+          throw new Error()
+        if (r.category && !pack.categories.includes(r.category)) throw new Error()
+      } else if (!r.exclude && (!r.category || !pack.categories.includes(r.category)))
+        throw new Error()
       for (const c of r.conditions) {
         if (c.op !== 'eq') {
           if (typeof c.value !== 'string') throw new Error()

@@ -34,7 +34,8 @@ export const TX_HEADERS = [
   'matched_rule',
   'raw_json',
 ]
-export const RULE_HEADERS = ['kind', 'order', 'enabled', 'spec_json']
+import { RULE_HEADERS, readRules, ruleRows } from './sheet-rules'
+export { RULE_HEADERS, ruleRows } from './sheet-rules'
 export const IMPORT_HEADERS = [
   'id',
   'imported_at',
@@ -234,50 +235,15 @@ function readReceipt(r: Cell[]): ImportReceipt {
   if (!result.success) throw new Error('Importverlauf hat ein ungültiges Format.')
   return result.data
 }
-function checkRows(rows: Cell[][], header: string[]): Cell[][] {
+function checkRows(rows: Cell[][], header: string[], allowBlank = false): Cell[][] {
   if (JSON.stringify(rows[0]) !== JSON.stringify(header))
     throw new Error(
       'Tabellenschema stimmt nicht überein. Bitte eine Beancounter-Tabelle verwenden.',
     )
   const data = rows.slice(1)
-  if (data.some((r) => !r.length || r.every((c) => c === '')))
+  if (!allowBlank && data.some((r) => !r.length || r.every((c) => c === '')))
     throw new Error('Leere Zwischenzeilen in der Tabelle. Bitte Tabelle prüfen.')
   return data
-}
-export function ruleRows(pack: RulePack): Cell[][] {
-  const { normalizers, rules, ...settings } = pack
-  return [
-    ['settings', 0, true, JSON.stringify(settings)],
-    ...normalizers.map((r, i): Cell[] => ['normalize', i, true, JSON.stringify(r)]),
-    ...rules.map((r, i): Cell[] => ['rule', i, r.enabled, JSON.stringify(r)]),
-  ]
-}
-function readRules(rows: Cell[][]): RulePack | null {
-  if (!rows.length) return null
-  try {
-    const settings = rows.filter((r) => r[0] === 'settings')
-    if (
-      settings.length !== 1 ||
-      rows.some(
-        (r) =>
-          !['settings', 'normalize', 'rule'].includes(String(r[0])) ||
-          !Number.isInteger(sheetInteger(r[1])) ||
-          typeof r[2] !== 'boolean',
-      )
-    )
-      throw new Error()
-    const sorted = (kind: string) =>
-      rows.filter((r) => r[0] === kind).sort((a, b) => sheetInteger(a[1]) - sheetInteger(b[1]))
-    return validateRulePack({
-      ...JSON.parse(String(settings[0]![3])),
-      normalizers: sorted('normalize')
-        .filter((r) => r[2])
-        .map((r) => JSON.parse(String(r[3]))),
-      rules: sorted('rule').map((r) => ({ ...JSON.parse(String(r[3])), enabled: r[2] })),
-    })
-  } catch {
-    throw new Error('Regeltabelle ist ungültig. Reihenfolge, Aktivierung und Regeldaten prüfen.')
-  }
 }
 export class SheetsStore {
   constructor(private request: Requester) {}
@@ -328,7 +294,7 @@ export class SheetsStore {
         )
       ids[name] = sheet.properties.sheetId
     }
-    const ranges = ['Transactions!A:N', 'Rules!A:D', 'Imports!A:K', 'Meta!A:B']
+    const ranges = ['Transactions!A:N', 'Rules!A:G', 'Imports!A:K', 'Meta!A:B']
     const values = await this.request<{ valueRanges: { values?: Cell[][] }[] }>(
       `/${spreadsheetId}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER&${ranges.map((r) => 'ranges=' + encodeURIComponent(r)).join('&')}`,
     )
@@ -336,7 +302,7 @@ export class SheetsStore {
     if (String(settings.find((r) => r[0] === 'schema_version')?.[1]) !== '4')
       throw new Error('Nicht unterstützte Tabellenversion.')
     const [tx, rules, imports] = (['Transactions', 'Rules', 'Imports'] as const).map((name, i) =>
-      checkRows(values.valueRanges[i]?.values ?? [], tabs[name]),
+      checkRows(values.valueRanges[i]?.values ?? [], tabs[name], name === 'Rules'),
     )
     const transactions = tx!.map(readTransaction),
       receipts = imports!.map(readReceipt)
@@ -368,7 +334,7 @@ export class SheetsStore {
                 startRowIndex: 0,
                 endRowIndex: Math.max(snapshot.ruleRows, rows.length),
                 startColumnIndex: 0,
-                endColumnIndex: 4,
+                endColumnIndex: RULE_HEADERS.length,
               },
               rows: rows.map((r) => rowData(r)),
               fields: 'userEnteredValue',
