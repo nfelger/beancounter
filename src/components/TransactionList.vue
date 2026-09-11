@@ -36,7 +36,9 @@ const filtered = computed(() =>
     .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate)),
 )
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / PER_PAGE)))
-const visible = computed(() => filtered.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE))
+const visible = computed(() =>
+  filtered.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE),
+)
 watch([search, filter, () => props.transactions], () => {
   page.value = 1
 })
