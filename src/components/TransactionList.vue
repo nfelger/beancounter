@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { needsReview, money, displayDate, type Transaction } from '../domain/model'
+const PER_PAGE = 100
 const props = defineProps<{
   transactions: Transaction[]
   categories: string[]
@@ -34,8 +35,8 @@ const filtered = computed(() =>
     })
     .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate)),
 )
-const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / 40)))
-const visible = computed(() => filtered.value.slice((page.value - 1) * 40, page.value * 40))
+const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / PER_PAGE)))
+const visible = computed(() => filtered.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE))
 watch([search, filter, () => props.transactions], () => {
   page.value = 1
 })
