@@ -1,8 +1,16 @@
+import { z } from 'zod'
 import { computed, readonly, ref } from 'vue'
 import { loadGoogle } from './google'
 
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const EXPIRY_MARGIN_MS = 30_000
+export const SESSION_KEY = 'beancounter.google-session.v1'
+const savedSession = z.object({
+  clientId: z.string().min(1),
+  scope: z.literal(DRIVE_SCOPE),
+  token: z.string().min(1),
+  expiresAt: z.number().finite().positive(),
+})
 
 export function createGoogleSession() {
   const ready = ref(false),
@@ -19,8 +27,54 @@ export function createGoogleSession() {
     token = ''
     expiresAt = 0
   }
+  function forgetSavedToken() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY)
+      // An older tab must not remove a newer tab's grant when its own token expires.
+      if (raw && JSON.parse(raw).token === token) localStorage.removeItem(SESSION_KEY)
+    } catch {
+      // Storage may be disabled; the in-memory session still works.
+    }
+  }
+  function restore(clientId: string): boolean {
+    clearToken()
+    status.value = 'disconnected'
+    try {
+      const raw = localStorage.getItem(SESSION_KEY)
+      if (!raw) return false
+      const saved = savedSession.parse(JSON.parse(raw))
+      const remaining = saved.expiresAt - Date.now()
+      if (saved.clientId !== clientId || remaining <= 0 || remaining > 2_147_483_647) {
+        localStorage.removeItem(SESSION_KEY)
+        return false
+      }
+      token = saved.token
+      expiresAt = saved.expiresAt
+      expiryTimer = setTimeout(checkExpiry, remaining)
+      status.value = 'connected'
+      return true
+    } catch {
+      try {
+        localStorage.removeItem(SESSION_KEY)
+      } catch {
+        /* Storage unavailable. */
+      }
+      return false
+    }
+  }
+  function dispose() {
+    cancelAuthorization?.()
+    clearToken()
+    status.value = 'disconnected'
+  }
+  function onStorage(event: StorageEvent) {
+    if (event.storageArea && event.storageArea !== localStorage) return
+    // Do not switch accounts underneath an open preview. Reconnect explicitly.
+    if (event.key === SESSION_KEY || event.key === null) dispose()
+  }
   function checkExpiry() {
     if (token && Date.now() >= expiresAt) {
+      forgetSavedToken()
       clearToken()
       status.value = 'expired'
     }
@@ -30,9 +84,8 @@ export function createGoogleSession() {
     return token
   }
   function disconnect() {
-    cancelAuthorization?.()
-    clearToken()
-    status.value = 'disconnected'
+    forgetSavedToken()
+    dispose()
   }
   function invalidate() {
     disconnect()
@@ -58,6 +111,7 @@ export function createGoogleSession() {
       return Promise.reject(
         new Error('Google-Zugang ist noch nicht bereit. Bitte Einstellungen prüfen.'),
       )
+    forgetSavedToken()
     clearToken()
     status.value = 'authorizing'
     return new Promise((resolve, reject) => {
@@ -100,6 +154,19 @@ export function createGoogleSession() {
             cancelAuthorization = undefined
             token = response.access_token
             expiresAt = Date.now() + lifetime
+            try {
+              localStorage.setItem(
+                SESSION_KEY,
+                JSON.stringify({
+                  clientId,
+                  scope: DRIVE_SCOPE,
+                  token,
+                  expiresAt,
+                }),
+              )
+            } catch {
+              // A blocked or full store must not prevent authorization.
+            }
             expiryTimer = setTimeout(checkExpiry, lifetime)
             status.value = 'connected'
             resolve()
@@ -119,6 +186,9 @@ export function createGoogleSession() {
     status: readonly(status),
     connected: computed(() => status.value === 'connected'),
     prepare,
+    restore,
+    dispose,
+    onStorage,
     authorize,
     getToken,
     checkExpiry,

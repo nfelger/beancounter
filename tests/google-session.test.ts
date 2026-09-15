@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createGoogleSession, DRIVE_SCOPE } from '../src/services/google-session'
+import { createGoogleSession, DRIVE_SCOPE, SESSION_KEY } from '../src/services/google-session'
 import { loadGoogle } from '../src/services/google'
 
 vi.mock('../src/services/google', () => ({ loadGoogle: vi.fn() }))
@@ -16,6 +16,16 @@ const response = (changes: Partial<google.accounts.oauth2.TokenResponse> = {}) =
   }) as google.accounts.oauth2.TokenResponse
 beforeEach(async () => {
   vi.useFakeTimers()
+  const values = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: vi.fn((key: string) => values.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      values.set(key, value)
+    }),
+    removeItem: vi.fn((key: string) => {
+      values.delete(key)
+    }),
+  })
   vi.mocked(loadGoogle).mockResolvedValue()
   requestAccessToken.mockReset()
   vi.stubGlobal('window', {
@@ -122,5 +132,86 @@ describe('Google session', () => {
     session.invalidate()
     expect(session.getToken()).toBe('')
     expect(session.status.value).toBe('expired')
+  })
+})
+
+describe('remembered Google connection', () => {
+  async function connect() {
+    const pending = session.authorize('test-client')
+    options.callback(response())
+    await pending
+  }
+  it('survives page teardown and restores without a popup or extending expiry', async () => {
+    await connect()
+    const saved = localStorage.getItem(SESSION_KEY)
+    session.dispose()
+    vi.advanceTimersByTime(60_000)
+    session = createGoogleSession()
+    expect(session.restore('test-client')).toBe(true)
+    expect(session.getToken()).toBe('synthetic-token')
+    expect(requestAccessToken).toHaveBeenCalledOnce()
+    expect(localStorage.getItem(SESSION_KEY)).toBe(saved)
+    vi.advanceTimersByTime(3_510_000)
+    expect(session.status.value).toBe('expired')
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull()
+  })
+  it.each(['malformed', 'expired', 'wrong-client', 'wrong-scope'])(
+    'discards a %s saved connection',
+    async (kind) => {
+      await connect()
+      session.dispose()
+      const saved = JSON.parse(localStorage.getItem(SESSION_KEY)!)
+      if (kind === 'expired') saved.expiresAt = Date.now() - 1
+      if (kind === 'wrong-client') saved.clientId = 'other-client'
+      if (kind === 'wrong-scope') saved.scope = 'openid'
+      localStorage.setItem(SESSION_KEY, kind === 'malformed' ? '{' : JSON.stringify(saved))
+      expect(session.restore('test-client')).toBe(false)
+      expect(session.getToken()).toBe('')
+      expect(localStorage.getItem(SESSION_KEY)).toBeNull()
+    },
+  )
+  it.each(['disconnect', 'invalidate'] as const)(
+    'clears persisted access on %s',
+    async (method) => {
+      await connect()
+      session[method]()
+      expect(localStorage.getItem(SESSION_KEY)).toBeNull()
+      expect(session.getToken()).toBe('')
+    },
+  )
+  it('disconnects on another tab changing or clearing the saved connection', async () => {
+    await connect()
+    session.onStorage({ key: 'unrelated' } as StorageEvent)
+    expect(session.connected.value).toBe(true)
+    localStorage.removeItem(SESSION_KEY)
+    session.onStorage({ key: SESSION_KEY } as StorageEvent)
+    expect(session.connected.value).toBe(false)
+    await connect()
+    session.onStorage({ key: null } as StorageEvent)
+    expect(session.connected.value).toBe(false)
+  })
+  it('does not erase a newer grant when an older tab expires', async () => {
+    await connect()
+    const saved = JSON.parse(localStorage.getItem(SESSION_KEY)!)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ ...saved, token: 'new-synthetic-token' }))
+    vi.advanceTimersByTime(3_570_000)
+    expect(JSON.parse(localStorage.getItem(SESSION_KEY)!).token).toBe('new-synthetic-token')
+    expect(session.connected.value).toBe(false)
+  })
+  it('keeps authorization usable when browser storage is blocked', async () => {
+    vi.mocked(localStorage.getItem).mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.mocked(localStorage.setItem).mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.mocked(localStorage.removeItem).mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    expect(session.restore('test-client')).toBe(false)
+    await connect()
+    expect(session.getToken()).toBe('synthetic-token')
+    session.disconnect()
+    expect(session.getToken()).toBe('')
   })
 })

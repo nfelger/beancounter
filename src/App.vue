@@ -395,9 +395,11 @@ onUnmounted(() => {
   pickerAbort?.abort()
   window.removeEventListener('focus', session.checkExpiry)
   document.removeEventListener('visibilitychange', session.checkExpiry)
-  session.disconnect()
+  window.removeEventListener('storage', session.onStorage)
+  session.dispose()
 })
 onMounted(async () => {
+  window.addEventListener('storage', session.onStorage)
   window.addEventListener('focus', session.checkExpiry)
   document.addEventListener('visibilitychange', session.checkExpiry)
   try {
@@ -416,7 +418,9 @@ onMounted(async () => {
     }
     if (pending.value) sheetId.value = pending.value.spreadsheetId
     if (config.value.clientId) {
+      const restored = session.restore(config.value.clientId)
       await session.prepare()
+      if (restored && sheetId.value) await run('Tabelle wird geladen', refresh)
     }
   } catch (e) {
     report(e)

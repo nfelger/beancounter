@@ -17,7 +17,7 @@ Budgeting, pivot-style reporting, and historical comparisons remain on the [road
 
 ## Google integration
 
-OAuth uses [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model), loaded from Google's hosted SDK. The app adapter handles loading, error messages, and in-memory token expiry. It does not implement the OAuth protocol. Google Picker uses Google's SDK as well. Their TypeScript declarations come from DefinitelyTyped packages.
+OAuth uses [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model), loaded from Google's hosted SDK. The app adapter handles loading, error messages, and token persistence and expiry. It does not implement the OAuth protocol. Google Picker uses Google's SDK as well. Their TypeScript declarations come from DefinitelyTyped packages.
 
 Sheets requests use `fetch` with the SDK-issued access token, an approach supported by Google. Spreadsheet schema validation, import deduplication, and save recovery remain application logic.
 
@@ -54,4 +54,4 @@ Automated domain/service checks and a production build have been run for the ini
 
 **Never commit actual transactions or personal rules.** Their contents reveal financial activity even without account numbers. Real inputs, private reference scripts, and rule-conversion outputs must remain outside the checkout. Public tests use independently invented data.
 
-No analytics, third-party error reporting, private seed data, or personal rules are bundled. OAuth tokens stay in memory. An unconfirmed import is temporarily retained in the current browser tab for recovery and removed after confirmation.
+No analytics, third-party error reporting, private seed data, or personal rules are bundled. OAuth access tokens are retained in localStorage until their original expiry, allowing automatic reconnection across reloads and browser restarts. Disconnecting clears the saved connection. An unconfirmed import is temporarily retained in the current browser tab for recovery and removed after confirmation.

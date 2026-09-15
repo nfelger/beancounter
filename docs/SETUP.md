@@ -75,6 +75,10 @@ In **Zuordnung ändern**, use **Ändern & Regel erstellen** to reuse the choice 
 
 Preview rules are saved with **Import bestätigen**. Use **Import verwerfen** to discard them. For an already stored transaction, the assignment and rule save together immediately; other historical transactions stay unchanged. No spreadsheet layout changes are needed.
 
+## Remembered Google connection
+
+The app remembers its short-lived access token in localStorage on this browser and restores the connection on reload or reopening, until the original expiry. It checks the configured OAuth client and scope before restoring. Expired or rejected tokens are cleared; reconnect with Google when prompted. **Abmelden** clears the saved connection and disconnects other open tabs. If storage is unavailable, authorization still works for the current page. This does not extend Google's token lifetime or provide background renewal.
+
 ## Recovery and limits
 
 - If a save's outcome is uncertain, keep the browser tab open and use **Status prüfen und fortsetzen**. If necessary, reconnect Google first.
