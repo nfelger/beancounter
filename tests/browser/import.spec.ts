@@ -209,3 +209,17 @@ test('historical rule creation changes only the selected transaction and recover
   expect(mock.rows[0]![2]![8]).toBe('Moonbean')
   expect(mock.rows[1]!.filter((r) => r[0] === 'simple_rule')).toHaveLength(1)
 })
+
+test('pasted CSV uses the same preview and duplicate detection as upload', async ({ page }) => {
+  const mock = await mockGoogle(page)
+  await openAndUpload(page)
+  await page.getByRole('button', { name: 'Import bestätigen' }).click()
+  await expect(page.getByRole('status')).toContainText('1 Buchungen gespeichert')
+  await page.getByText('CSV-Daten einfügen', { exact: true }).click()
+  await page.getByLabel('CSV-Daten', { exact: true }).fill(csv())
+  await page.getByRole('button', { name: 'Vorschau erstellen' }).click()
+  await expect(page.getByText('Eingefügte Umsätze.csv', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Import bestätigen' }).click()
+  await expect(page.getByRole('status')).toContainText('bereits importiert')
+  expect(mock.getWrites()).toBe(1)
+})

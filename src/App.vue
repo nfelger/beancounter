@@ -215,12 +215,19 @@ async function saveRules() {
     view.value = 'import'
   })
 }
+const pastedCsv = ref('')
+async function pasteCsv() {
+  await importCsv(new File([pastedCsv.value], 'Eingefügte Umsätze.csv', { type: 'text/csv' }))
+}
 async function readCsv(event: Event) {
   const input = event.target as HTMLInputElement,
     file = input.files?.[0]
   input.value = ''
   if (!file) return
-  await run('Datei wird geprüft', async () => {
+  await importCsv(file)
+}
+async function importCsv(file: File) {
+  await run('CSV wird geprüft', async () => {
     preview.value = null
     await refresh()
     if (!snapshot.value?.rules) throw new Error('Bitte zuerst deine privaten Regeln laden.')
@@ -228,6 +235,7 @@ async function readCsv(event: Event) {
     preview.value = await processFile(file, state.rules!, state.transactions)
     baseRulesDigest = preview.value.rulesDigest
     baseRuleCells = state.ruleCells
+    pastedCsv.value = ''
   })
 }
 async function saveImport() {
@@ -529,7 +537,7 @@ onMounted(async () => {
             <section class="panel">
               <div class="step-heading">
                 <span class="step">01</span>
-                <h2>ING-Datei auswählen</h2>
+                <h2>ING-Umsätze importieren</h2>
               </div>
               <p class="muted">
                 Lade den CSV-Export aus deinem Banking. Bereits importierte Buchungen werden
@@ -540,13 +548,31 @@ onMounted(async () => {
                 <button class="text-button" @click="view = 'settings'">Private Regeln laden</button>
               </p>
               <label class="upload" :class="{ disabled: locked || !snapshot?.rules || !connected }">
-                CSV auswählen<input
+                CSV hochladen<input
                   type="file"
                   accept=".csv,text/csv"
                   :disabled="locked || !snapshot?.rules || !connected"
                   @change="readCsv"
                 />
               </label>
+              <details>
+                <summary>CSV-Daten einfügen</summary>
+                <label
+                  >CSV-Daten<textarea
+                    v-model="pastedCsv"
+                    rows="6"
+                    :disabled="locked"
+                    placeholder="CSV-Daten hier einfügen…"
+                  />
+                </label>
+                <button
+                  class="secondary"
+                  :disabled="locked || !snapshot?.rules || !connected || !pastedCsv.trim()"
+                  @click="pasteCsv"
+                >
+                  Vorschau erstellen
+                </button>
+              </details>
               <p class="small muted">Gebuchte Umsätze · EUR · bis 10 MB</p>
             </section>
             <section v-if="preview" class="panel">
