@@ -2,23 +2,39 @@ import { decodeCsv, parseIngCsv } from './csv'
 import { prepareImport } from './import'
 import { validateRulePack, type RulePack } from './rules'
 import type { Transaction } from './model'
+import { buildAssignmentRule } from '../services/assignment-rules'
+import type { Cell } from '../services/sheets'
 
-self.onmessage = async (
-  event: MessageEvent<{
-    bytes: ArrayBuffer
-    filename: string
-    pack: RulePack
-    existing: Transaction[]
-  }>,
-) => {
+type Task =
+  | {
+      kind: 'import'
+      bytes: ArrayBuffer
+      filename: string
+      pack: RulePack
+      existing: Transaction[]
+    }
+  | {
+      kind: 'assignment'
+      cells: Cell[][]
+      transaction: Transaction
+      payee: string
+      category: string
+    }
+self.onmessage = async (event: MessageEvent<Task>) => {
   try {
-    const { bytes, filename, pack, existing } = event.data
-    const source = parseIngCsv(decodeCsv(bytes), filename)
-    const preview = await prepareImport(source, validateRulePack(pack), existing)
-    self.postMessage({ preview })
+    const task = event.data
+    const result =
+      task.kind === 'assignment'
+        ? buildAssignmentRule(task.cells, task.transaction, task.payee, task.category)
+        : await prepareImport(
+            parseIngCsv(decodeCsv(task.bytes), task.filename),
+            validateRulePack(task.pack),
+            task.existing,
+          )
+    self.postMessage({ result })
   } catch (e) {
     self.postMessage({
-      error: e instanceof Error ? e.message : 'Die Datei konnte nicht verarbeitet werden.',
+      error: e instanceof Error ? e.message : 'Die Daten konnten nicht verarbeitet werden.',
     })
   }
 }
