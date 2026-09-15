@@ -255,3 +255,46 @@ test('optional Amazon context cannot block CSV import or enter stored transactio
   expect(JSON.stringify(mock.rows)).not.toContain('Imaginary moon lamp')
   await expect(page.getByRole('heading', { name: 'Amazon-Käufe gefunden' })).toHaveCount(0)
 })
+
+test('assignment buttons preserve page two in preview and saved transactions', async ({ page }) => {
+  await mockGoogle(page)
+  await openAndUpload(
+    page,
+    csv(Array.from({ length: 101 }, (_, i) => ({ ...raw, purpose: `SYNTHETIC-${i}` }))),
+  )
+  const pagination = page.locator('.pagination')
+  await pagination.getByRole('button', { name: 'Weiter' }).click()
+  for (const rule of [false, true]) {
+    await editAssignment(page, 0, 'Moonbean', rule ? 'Travel' : 'Food', rule)
+    await expect(pagination).toContainText('2 / 2')
+  }
+  await page.getByRole('button', { name: 'Import bestätigen' }).click()
+  await expect(page.getByRole('status')).toContainText('101 Buchungen gespeichert')
+  await page.getByRole('button', { name: 'Buchungen', exact: true }).click()
+  await pagination.getByRole('button', { name: 'Weiter' }).click()
+  for (const rule of [false, true]) {
+    await editAssignment(page, 0, 'Moonbean', rule ? 'Travel' : 'Food', rule)
+    await expect(pagination).toContainText('2 / 2')
+  }
+})
+
+test('removing the final filtered result on page two clamps to the remaining page', async ({
+  page,
+}) => {
+  await mockGoogle(page)
+  await openAndUpload(
+    page,
+    csv(
+      Array.from({ length: 101 }, (_, i) => ({
+        ...raw,
+        rawPayee: 'FICTIONAL SHOP',
+        purpose: `SYNTHETIC-${i}`,
+      })),
+    ),
+  )
+  await page.getByLabel('Zeigen', { exact: true }).selectOption('review')
+  await page.locator('.pagination').getByRole('button', { name: 'Weiter' }).click()
+  await editAssignment(page, 0, 'Assigned shop', 'Food')
+  await expect(page.locator('article.transaction')).toHaveCount(100)
+  await expect(page.locator('.pagination')).toHaveCount(0)
+})

@@ -55,8 +55,11 @@ const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / P
 const visible = computed(() =>
   filtered.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE),
 )
-watch([search, filter, () => props.transactions], () => {
+watch([search, filter], () => {
   page.value = 1
+})
+watch(pageCount, (count) => {
+  page.value = Math.min(page.value, count)
 })
 function edit(t: Transaction) {
   editing.value = t.id
