@@ -69,10 +69,16 @@ In **Einstellungen → Private Zuordnungsregeln**, choose **Dropdowns und Checkb
 
 Use distinct numeric priorities shared by simple and JSON rules. Check `enabled` when a row is ready. Errors identify the affected cell without revealing its contents. After editing, upload the CSV again to get a fresh preview.
 
+## Save an assignment as a rule
+
+In **Zuordnung ändern**, use **Ändern & Regel erstellen** to reuse the choice for future imports. In an import preview, matching transactions are updated too, except exclusions and transactions you already edited manually. The form shows how many additional assignments will change.
+
+Preview rules are saved with **Import bestätigen**. Use **Import verwerfen** to discard them. For an already stored transaction, the assignment and rule save together immediately; other historical transactions stay unchanged. No spreadsheet layout changes are needed.
+
 ## Recovery and limits
 
 - If a save's outcome is uncertain, keep the browser tab open and use **Status prüfen und fortsetzen**. If necessary, reconnect Google first.
-- A pending plan is retained in tab-scoped sessionStorage, including the private rows needed to retry. It contains no OAuth token and is deleted after verified success.
+- A pending import or assignment-and-rule save is retained in tab-scoped sessionStorage, including private transaction/rule rows needed to retry. It contains no OAuth token and is deleted after verified success.
 - Do not close the tab, switch tables, edit/sort the spreadsheet, or start another importer while a save is unresolved.
 - Reloading the same tab restores its pending plan. Browser storage loss or closing the tab can remove it; consult the import receipt and transactions before attempting another import.
 - The current release supports EUR ING exports, files up to 10 MB, and atomic write payloads up to 1.8 MB. Large imports must be split into smaller date ranges. Tables are initially sized for 29,999 data rows.

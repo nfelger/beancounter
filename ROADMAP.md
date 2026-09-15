@@ -57,6 +57,7 @@ Deliver one complete flow: connect a spreadsheet, choose an ING CSV on a phone, 
 - [ ] Calculate app reports from transactions rather than depending on the layout of existing spreadsheet pivot tables.
 - [x] Offer a review queue for unmatched classifications (transaction-list filter).
 - [x] Support spreadsheet CRUD for simple regex rules alongside full JSON rules, with explicit ordering and validation.
+- [x] Create exact-match rules from assignment corrections, propagate within previews while protecting manual edits/exclusions, and save rules atomically with affected records.
 - [ ] Assess whether sample-match testing and impact previews need additional UI; defer an app rule editor until spreadsheet editing proves insufficient.
 - [ ] Support explicit reclassification of historical transactions with an explicit policy for preserving corrected assignments.
 - [ ] Establish report semantics for income, refunds/reimbursements, internal transfers, excluded transactions, and cash withdrawals.

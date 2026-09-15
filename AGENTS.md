@@ -43,7 +43,8 @@ This repository and its deployed static assets are public. Preventing disclosure
 - Configure GitHub Actions to test, build, and deploy successful changes to Pages. Until configured, do not claim these checks or deployment exist.
 - Test meaningful failure modes: parsing, encoding, regex/Unicode parity, legitimate repeated transactions, overlapping imports, and uncertain save outcomes.
 - Run `npm run check` and `npm run format:check` before publishing code. The optional browser suite is `npm run test:e2e`; document when browser or live Google validation has not run.
-- Financial data and tokens normally stay in memory. An unconfirmed import alone may be held in tab-scoped sessionStorage for recovery; clear it immediately after verified success. Never store OAuth tokens there or add general persistent financial caching.
+- Financial data and tokens normally stay in memory. An unconfirmed import or assignment-and-rule save may be held in tab-scoped sessionStorage for recovery, including the exact private rule rows needed to retry; clear it immediately after verified success. Never store OAuth tokens there or add general persistent financial caching.
+- Protect explicit edits in the current preview with session-only state when applying a new assignment rule. Stage preview rules until import confirmation; save rules and affected records atomically.
 - Preserve original bank fields separately from classifications. Payee and category each have one authoritative value; corrections update it directly. Rules apply on import, and reimport must preserve existing assignments.
 - Treat imported strings as literal spreadsheet values, not executable formulas. Write dates and amounts as typed numeric cells; read unformatted values independently of sheet locale and display format.
 - During this development stage, prefer resetting and reimporting data over legacy compatibility or migrations unless explicitly requested.

@@ -10,6 +10,9 @@ import {
   SheetsStore,
   googleRequester,
   createSavePlan,
+  createRuleChange,
+  createCorrectionPlan,
+  type Cell,
   reconcile,
   persistPending,
   restorePending,
@@ -18,7 +21,8 @@ import {
   type SavePlan,
   type Snapshot,
 } from './services/sheets'
-import { processFile } from './services/import-worker'
+import { processFile, processAssignmentRule } from './services/import-worker'
+import { applyAssignment } from './services/assignment-rules'
 
 type View = 'import' | 'transactions' | 'settings'
 const view = ref<View>('import'),
@@ -31,6 +35,23 @@ const snapshot = shallowRef<Snapshot | null>(null),
   preview = ref<ImportPreview | null>(null)
 const pending = shallowRef<SavePlan | null>(null),
   candidateRules = shallowRef<RulePack | null>(null)
+const editedPreviewIds = ref(new Set<string>())
+const stagedRuleCells = shallowRef<Cell[][] | null>(null)
+const stagedPayees = ref(new Set<string>())
+let baseRulesDigest = ''
+let baseRuleCells: Cell[][] = []
+watch(
+  preview,
+  (next) => {
+    if (next) return
+    editedPreviewIds.value = new Set()
+    stagedRuleCells.value = null
+    stagedPayees.value = new Set()
+    baseRulesDigest = ''
+    baseRuleCells = []
+  },
+  { flush: 'sync' },
+)
 const selectedRulesName = ref('')
 const config = ref<GoogleConfig>({
   clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
@@ -64,14 +85,16 @@ function report(e: unknown) {
   if (e instanceof GoogleError && e.status === 401) session.invalidate()
 }
 async function run(label: string, action: () => Promise<void>) {
-  if (busy.value) return
+  if (busy.value) return false
   busy.value = label
   error.value = ''
   notice.value = ''
   try {
     await action()
+    return true
   } catch (e) {
     report(e)
+    return false
   } finally {
     busy.value = ''
   }
@@ -113,6 +136,7 @@ async function connect() {
 }
 async function createSheet() {
   await run('Tabelle wird erstellt', async () => {
+    preview.value = null
     sheetId.value = await store.create()
     localStorage.setItem('beancounter.sheet.v1', sheetId.value)
     await refresh()
@@ -200,7 +224,10 @@ async function readCsv(event: Event) {
     preview.value = null
     await refresh()
     if (!snapshot.value?.rules) throw new Error('Bitte zuerst deine privaten Regeln laden.')
-    preview.value = await processFile(file, snapshot.value.rules, snapshot.value.transactions)
+    const state = snapshot.value
+    preview.value = await processFile(file, state.rules!, state.transactions)
+    baseRulesDigest = preview.value.rulesDigest
+    baseRuleCells = state.ruleCells
   })
 }
 async function saveImport() {
@@ -208,7 +235,7 @@ async function saveImport() {
     if (!preview.value || !snapshot.value) return
     await refresh()
     const fresh = snapshot.value!
-    if (!fresh.rules || (await digest(JSON.stringify(fresh.rules))) !== preview.value.rulesDigest)
+    if (!fresh.rules || (await digest(JSON.stringify(fresh.rules))) !== baseRulesDigest)
       throw new Error('Die Regeln haben sich geändert. Bitte die CSV erneut auswählen.')
     if (fresh.receipts.some((r) => r.id === preview.value!.id)) {
       preview.value = null
@@ -222,7 +249,18 @@ async function saveImport() {
       transactions: tx,
       duplicates: preview.value.duplicates + preview.value.transactions.length - tx.length,
     }
-    const plan = createSavePlan(fresh, current)
+    if (
+      stagedRuleCells.value &&
+      (await digest(JSON.stringify(fresh.ruleCells))) !==
+        (await digest(JSON.stringify(baseRuleCells)))
+    )
+      throw new Error(
+        'Die Regeltabelle wurde während der Vorschau geändert. Bitte CSV erneut auswählen.',
+      )
+    const change = stagedRuleCells.value
+      ? createRuleChange(fresh, stagedRuleCells.value)
+      : undefined
+    const plan = createSavePlan(fresh, current, change)
     persistPending(plan)
     pending.value = plan
     await store.save(plan)
@@ -252,22 +290,81 @@ async function recover() {
     await finishSave(plan)
   })
 }
-async function correct(id: string, payee: string, category: string) {
-  if (locked.value) return
-  if (preview.value && view.value === 'import') {
-    const tx = preview.value.transactions.find((t) => t.id === id)
-    if (tx) {
-      tx.classification.payee = payee
-      tx.classification.category = category
-    }
-    return
-  }
-  await run('Zuordnung wird gespeichert', async () => {
-    await refresh()
-    if (snapshot.value) await store.correct(snapshot.value, id, payee, category)
-    await refresh()
-    notice.value = 'Zuordnung gespeichert.'
-  })
+async function correct(
+  id: string,
+  payee: string,
+  category: string,
+  createRule = false,
+): Promise<boolean> {
+  if (locked.value) return false
+  const draft = view.value === 'import' ? preview.value : null
+  return run(
+    createRule ? 'Zuordnung und Regel werden vorbereitet' : 'Zuordnung wird gespeichert',
+    async () => {
+      if (draft) {
+        const tx = draft.transactions.find((t) => t.id === id)
+        if (!tx) throw new Error('Buchung nicht gefunden.')
+        if (createRule) {
+          const result = await processAssignmentRule(
+            stagedRuleCells.value ?? baseRuleCells,
+            tx,
+            payee,
+            category,
+          )
+          const rulesDigest = await digest(JSON.stringify(result.pack))
+          draft.transactions = applyAssignment(
+            draft.transactions,
+            id,
+            payee,
+            category,
+            editedPreviewIds.value,
+            result,
+          )
+          draft.rulesDigest = rulesDigest
+          stagedRuleCells.value = result.cells
+          stagedPayees.value.add(result.normalized.toLowerCase())
+          notice.value = 'Zuordnung geändert. Die Regel wird mit dem Import gespeichert.'
+        } else {
+          draft.transactions = applyAssignment(
+            draft.transactions,
+            id,
+            payee,
+            category,
+            editedPreviewIds.value,
+          )
+        }
+        editedPreviewIds.value.add(id)
+        return
+      }
+      if (createRule && preview.value)
+        throw new Error('Bitte zuerst den offenen Import bestätigen oder verwerfen.')
+      await refresh()
+      const state = snapshot.value!
+      if (createRule) {
+        const tx = state.transactions.find((t) => t.id === id)
+        if (!tx) throw new Error('Buchung nicht gefunden.')
+        const result = await processAssignmentRule(state.ruleCells, tx, payee, category)
+        const plan = createCorrectionPlan(
+          state,
+          id,
+          payee,
+          category,
+          createRuleChange(state, result.cells),
+        )
+        await refresh()
+        if (reconcile(snapshot.value!, plan) === 'retry') {
+          persistPending(plan)
+          pending.value = plan
+          await store.save(plan)
+        }
+        await finishSave(plan)
+      } else {
+        await store.correct(state, id, payee, category)
+        await refresh()
+        notice.value = 'Zuordnung gespeichert.'
+      }
+    },
+  )
 }
 function exportBackup() {
   if (!snapshot.value) return
@@ -357,15 +454,15 @@ onMounted(async () => {
       <div v-if="notice" class="message success" role="status">{{ notice }}</div>
       <div v-if="busy" class="message" role="status" aria-live="polite">{{ busy }} …</div>
       <section v-if="pending" class="panel pending">
-        <p class="eyebrow">OFFENER IMPORT</p>
+        <p class="eyebrow">OFFENE SPEICHERUNG</p>
         <h2>Speicherung bestätigen</h2>
         <p>
-          Ein Import ist noch nicht bestätigt. Prüfe zuerst seinen Status. Bis dahin bleiben weitere
-          Änderungen gesperrt.
+          Eine Speicherung ist noch nicht bestätigt. Prüfe zuerst ihren Status. Bis dahin bleiben
+          weitere Änderungen gesperrt.
         </p>
         <p class="small muted">
-          Der offene Import wird vorübergehend in diesem Browser-Tab aufbewahrt. Bitte den Tab nicht
-          schließen.
+          Die offene Speicherung wird vorübergehend in diesem Browser-Tab aufbewahrt. Bitte den Tab
+          nicht schließen.
         </p>
         <button v-if="connected" class="primary" :disabled="!!busy" @click="recover">
           Status prüfen und fortsetzen
@@ -454,6 +551,10 @@ onMounted(async () => {
                 <h2>Prüfen &amp; speichern</h2>
               </div>
               <p class="filename">{{ preview.source.filename }}</p>
+              <p v-if="stagedPayees.size" class="message">
+                {{ stagedPayees.size }} Regel(n) vorgemerkt — werden zusammen mit dem Import
+                gespeichert.
+              </p>
               <p class="small muted">
                 {{ displayDate(preview.source.periodStart) }} –
                 {{ displayDate(preview.source.periodEnd) }} · Konto …{{
@@ -535,13 +636,21 @@ onMounted(async () => {
           </aside>
         </div>
         <section v-if="preview" class="panel">
-          <h2>Neue Buchungen</h2>
+          <div class="section-heading">
+            <h2>Neue Buchungen</h2>
+            <button class="secondary" :disabled="locked" @click="preview = null">
+              Import verwerfen
+            </button>
+          </div>
           <TransactionList
             :transactions="preview.transactions"
+            :preview-mode="true"
+            :edited-ids="editedPreviewIds"
+            :can-create-rule="!!snapshot?.rules"
             :categories="categories"
             :unknown-category="unknownCategory"
             :editable="!locked"
-            @correct="correct"
+            :save-assignment="correct"
           />
         </section>
       </template>
@@ -564,10 +673,11 @@ onMounted(async () => {
           <TransactionList
             v-if="snapshot"
             :transactions="snapshot.transactions"
+            :can-create-rule="!!snapshot.rules && !preview"
             :categories="categories"
             :unknown-category="unknownCategory"
             :editable="connected && !locked"
-            @correct="correct"
+            :save-assignment="correct"
           />
           <p v-else class="empty">Verbinde eine Tabelle, um deine Buchungen zu sehen.</p>
         </section>

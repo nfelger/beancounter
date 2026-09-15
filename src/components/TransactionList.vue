@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { relatedAssignments } from '../services/assignment-rules'
 import { needsReview, money, displayDate, type Transaction } from '../domain/model'
 const PER_PAGE = 100
 const props = defineProps<{
@@ -7,8 +8,16 @@ const props = defineProps<{
   categories: string[]
   unknownCategory: string
   editable: boolean
+  previewMode?: boolean
+  editedIds?: ReadonlySet<string>
+  canCreateRule: boolean
+  saveAssignment: (
+    id: string,
+    payee: string,
+    category: string,
+    createRule: boolean,
+  ) => Promise<boolean>
 }>()
-const emit = defineEmits<{ correct: [id: string, payee: string, category: string] }>()
 const search = ref(''),
   filter = ref('all'),
   page = ref(1),
@@ -47,9 +56,17 @@ function edit(t: Transaction) {
   payee.value = t.classification.payee
   category.value = t.classification.category
 }
-function submit() {
-  emit('correct', editing.value, payee.value.trim(), category.value)
-  editing.value = ''
+const affectedCount = computed(() => {
+  const source = props.transactions.find((t) => t.id === editing.value)
+  if (!source || !props.previewMode) return 0
+  return relatedAssignments(props.transactions, source, props.editedIds ?? new Set()).filter(
+    (t) =>
+      t.classification.payee !== payee.value.trim() || t.classification.category !== category.value,
+  ).length
+})
+async function submit(createRule = false) {
+  if (await props.saveAssignment(editing.value, payee.value.trim(), category.value, createRule))
+    editing.value = ''
 }
 </script>
 <template>
@@ -111,7 +128,7 @@ function submit() {
           Zuordnung ändern
         </button>
       </div>
-      <form v-if="editing === t.id" class="edit-form" @submit.prevent="submit">
+      <form v-if="editing === t.id" class="edit-form" @submit.prevent="submit(false)">
         <label
           >Empfänger<input v-model="payee" :placeholder="t.classification.payee" maxlength="1000"
         /></label>
@@ -122,9 +139,30 @@ function submit() {
           </select></label
         >
         <div class="actions">
-          <button class="primary" :disabled="!editable">Übernehmen</button
+          <button class="secondary" :disabled="!editable">Zuordnung ändern</button
+          ><button
+            type="button"
+            class="primary"
+            :disabled="
+              !editable || !canCreateRule || !payee.trim() || !categories.includes(category)
+            "
+            @click="submit(true)"
+          >
+            Ändern &amp; Regel erstellen</button
           ><button type="button" class="secondary" @click="editing = ''">Abbrechen</button>
         </div>
+        <p v-if="previewMode" class="small muted">
+          Mit Regel: ändert auch {{ affectedCount }} weitere Buchung(en) in diesem Import. Manuelle
+          Änderungen und Ausschlüsse bleiben erhalten. Die Regel wird erst mit „Import bestätigen“
+          gespeichert.
+        </p>
+        <p v-else class="small muted">
+          Mit Regel: gilt für zukünftige Importe. Andere gespeicherte Buchungen bleiben
+          unverändert.<span v-if="!canCreateRule">
+            Bitte zuerst den offenen Import abschließen und sicherstellen, dass Regeln geladen
+            sind.</span
+          >
+        </p>
       </form>
     </article>
     <p v-if="!filtered.length" class="empty">Keine passenden Buchungen.</p>

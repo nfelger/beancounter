@@ -102,6 +102,18 @@ This relies on the agreed single-importer assumption. Do not sort, delete, or ot
 
 Use the app or the payee/category cells in Sheets to change assignments directly. There are no separate override columns or automatic values to restore. Imported source fields and IDs should not be edited directly.
 
+### Create a rule while correcting an assignment
+
+- **Zuordnung ändern** updates only the selected transaction.
+- **Ändern & Regel erstellen** also creates (or updates) an enabled `simple_rule` matching the complete normalized bank payee. Regex metacharacters are escaped; the app does not infer wildcards. Both a non-empty payee and a configured category are required.
+- During preview, the rule also updates matching, non-excluded transactions across all pages. Transactions explicitly edited earlier in this preview are protected as a whole; the current edit still applies to its selected transaction. No tracking columns are stored in Sheets.
+- Preview rules stay in memory until **Import bestätigen**, then rules, transactions and receipt are saved together. **Import verwerfen**, another CSV upload, switching spreadsheets, or signing out discards the preview and its staged rules. Reloading before confirmation also discards them.
+- For a stored transaction, the assignment and rule are saved immediately together. Other historical transactions are not changed. Finish/discard any active import preview before creating a rule from a historical transaction.
+- The rule is placed after enabled exclusion rules. Existing rule order and cells are preserved except where a priority gap is needed. If an earlier assignment rule still blocks the new rule, creation stops with an explanation rather than bypassing exclusions. Repeating the action for the same exact pattern updates that rule.
+- Rule evaluation stays in a worker with a timeout. The save checks the original rule set again; intervening sheet edits are not silently overwritten.
+
+If a response is lost, use **Status prüfen und fortsetzen**. A pending save retains its precise before/after values in tab-scoped sessionStorage and blocks further writes. Historical correction retries verify both the target assignment and rule rows; import retries verify unchanged rules and target ranges. Do not edit or reorder the sheet during recovery.
+
 The private JSON backup includes transactions, rules, and import receipts. An automatic backup restore interface is not implemented yet. Google Sheets version history and a separately saved export can support manual recovery.
 
 Month-to-date reporting is not implemented. The declared export period is recorded now, but is not treated as proof that pending bank activity or filtered-out transactions were imported.
