@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref, shallowRef } from 'vue'
+import AmazonDetails from './components/AmazonDetails.vue'
+import { isAmazon, amazonContext, type AmazonOrder } from './domain/amazon'
 import TransactionList from './components/TransactionList.vue'
 import { money, displayDate, needsReview, type ImportPreview } from './domain/model'
 import { digest } from './domain/import'
@@ -35,6 +37,13 @@ const snapshot = shallowRef<Snapshot | null>(null),
   preview = ref<ImportPreview | null>(null)
 const pending = shallowRef<SavePlan | null>(null),
   candidateRules = shallowRef<RulePack | null>(null)
+const amazonOrders = ref<AmazonOrder[]>([])
+const hasAmazon = computed(() => preview.value?.transactions.some(isAmazon) ?? false)
+const amazonContexts = computed(() =>
+  Object.fromEntries(
+    (preview.value?.transactions ?? []).map((t) => [t.id, amazonContext(t, amazonOrders.value)]),
+  ),
+)
 const editedPreviewIds = ref(new Set<string>())
 const stagedRuleCells = shallowRef<Cell[][] | null>(null)
 const stagedPayees = ref(new Set<string>())
@@ -44,6 +53,7 @@ watch(
   preview,
   (next) => {
     if (next) return
+    amazonOrders.value = []
     editedPreviewIds.value = new Set()
     stagedRuleCells.value = null
     stagedPayees.value = new Set()
@@ -575,6 +585,11 @@ onMounted(async () => {
               </details>
               <p class="small muted">Gebuchte Umsätze · EUR · bis 10 MB</p>
             </section>
+            <AmazonDetails
+              v-if="preview && hasAmazon"
+              :disabled="locked"
+              @change="amazonOrders = $event"
+            />
             <section v-if="preview" class="panel">
               <div class="step-heading">
                 <span class="step">02</span>
@@ -674,6 +689,7 @@ onMounted(async () => {
           </div>
           <TransactionList
             :transactions="preview.transactions"
+            :amazon-contexts="amazonContexts"
             :preview-mode="true"
             :edited-ids="editedPreviewIds"
             :can-create-rule="!!snapshot?.rules"

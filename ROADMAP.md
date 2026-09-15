@@ -24,7 +24,8 @@ Deliver one complete flow: connect a spreadsheet, choose an ING CSV on a phone, 
 
 ### Import and classification
 
-- [x] Support mobile file selection, starting with ING CSV exports.
+- [x] Support mobile file selection and pasted ING CSV through one import pipeline.
+- [x] Show optional Amazon purchase context in the current preview, using exact order IDs and explicitly unassigned fallback context.
 - [x] Parse the metadata preamble, semicolon-delimited table, quoted fields, German dates and amounts, and UTF-8/Windows-1252 encodings.
 - [x] Distinguish the two currency columns; keep money as integer minor units in application calculations and dates as date-only values.
 - [x] Detect already-damaged text and malformed files. Handle only known header variants; do not silently guess or repair transaction contents.

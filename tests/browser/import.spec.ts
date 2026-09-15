@@ -223,3 +223,35 @@ test('pasted CSV uses the same preview and duplicate detection as upload', async
   await expect(page.getByRole('status')).toContainText('bereits importiert')
   expect(mock.getWrites()).toBe(1)
 })
+
+test('optional Amazon context cannot block CSV import or enter stored transactions', async ({
+  page,
+}) => {
+  const mock = await mockGoogle(page)
+  await openAndUpload(
+    page,
+    csv([{ ...raw, rawPayee: 'AMAZON EU', purpose: '999-0000000-0000001' }]),
+  )
+  await expect(page.getByRole('heading', { name: 'Amazon-Käufe gefunden' })).toBeVisible()
+  await page.getByLabel('Amazon-Daten (optional)').fill('{invalid')
+  await page.getByRole('button', { name: 'Amazon-Details anzeigen' }).click()
+  await expect(page.getByText(/Der CSV-Import bleibt möglich/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Import bestätigen' })).toBeEnabled()
+  await page.getByLabel('Amazon-Daten (optional)').fill(
+    JSON.stringify({
+      orders: [
+        {
+          orderId: '999-0000000-0000001',
+          items: [{ name: 'Imaginary moon lamp', context: 'Invented purchase context' }],
+        },
+      ],
+    }),
+  )
+  await page.getByRole('button', { name: 'Amazon-Details anzeigen' }).click()
+  await page.getByText('Amazon: Bestellnummer stimmt überein', { exact: true }).click()
+  await expect(page.getByText('Imaginary moon lamp', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: 'Import bestätigen' }).click()
+  await expect(page.getByRole('status')).toContainText('1 Buchungen gespeichert')
+  expect(JSON.stringify(mock.rows)).not.toContain('Imaginary moon lamp')
+  await expect(page.getByRole('heading', { name: 'Amazon-Käufe gefunden' })).toHaveCount(0)
+})

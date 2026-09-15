@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import type { AmazonContext } from '../domain/amazon'
 import { computed, ref, watch } from 'vue'
 import { relatedAssignments } from '../services/assignment-rules'
 import { needsReview, money, displayDate, type Transaction } from '../domain/model'
 const PER_PAGE = 100
 const props = defineProps<{
   transactions: Transaction[]
+  amazonContexts?: Record<string, AmazonContext | undefined>
   categories: string[]
   unknownCategory: string
   editable: boolean
@@ -18,6 +20,11 @@ const props = defineProps<{
     createRule: boolean,
   ) => Promise<boolean>
 }>()
+const expandedAmazon = ref(new Set<string>())
+function toggleAmazon(id: string, event: Event) {
+  if ((event.target as HTMLDetailsElement).open) expandedAmazon.value.add(id)
+  else expandedAmazon.value.delete(id)
+}
 const search = ref(''),
   filter = ref('all'),
   page = ref(1),
@@ -104,6 +111,33 @@ async function submit(createRule = false) {
           money(t.amountMinor, t.raw.currency)
         }}</strong>
       </div>
+      <details
+        v-if="amazonContexts?.[t.id]"
+        class="amazon-context"
+        @toggle="toggleAmazon(t.id, $event)"
+      >
+        <summary>
+          {{
+            amazonContexts[t.id]!.exact
+              ? 'Amazon: Bestellnummer stimmt überein'
+              : 'Amazon-Kontext — keine eindeutige Zuordnung'
+          }}
+        </summary>
+        <p v-if="!amazonContexts[t.id]!.exact" class="small muted">
+          Keine passende Bestellnummer gefunden. Die eingefügten Bestellungen dienen nur zur
+          Orientierung; sie sind dieser Buchung nicht zugeordnet.
+        </p>
+        <template v-if="expandedAmazon.has(t.id)">
+          <div v-for="(order, index) in amazonContexts[t.id]!.orders" :key="index">
+            <p class="small muted">Bestellung {{ order.orderId }}</p>
+            <ul>
+              <li v-for="(item, itemIndex) in order.items" :key="itemIndex">
+                {{ item.name }}<br /><span class="small muted">{{ item.context }}</span>
+              </li>
+            </ul>
+          </div>
+        </template>
+      </details>
       <div class="tx-foot">
         <span v-if="t.classification.excluded" class="badge">Ausgeschlossen</span>
         <span v-else-if="needsReview(t, props.unknownCategory)" class="badge review"

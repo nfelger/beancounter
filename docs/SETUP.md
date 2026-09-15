@@ -95,3 +95,11 @@ The app remembers its short-lived access token in localStorage on this browser a
 - Test file selection in Safari on iPhone, including exports saved in Files.
 - Compare imported classifications with the current private Python reference on a representative full export.
 - Verify the first successful import and an overlapping reimport before adopting the app as the primary workflow.
+
+## CSV paste and optional Amazon context
+
+Upload an ING CSV or choose **CSV-Daten einfügen** and paste the complete export, including its metadata and headers. Both use the same parser, preview, and duplicate detection; the 10 MB limit applies to both.
+
+If the preview contains Amazon transactions, optionally paste JSON in **Amazon-Käufe gefunden**: `{ "orders": [{ "orderId": "…", "items": [{ "name": "…", "context": "…" }] }] }`. Exact order IDs in original bank fields identify orders. Otherwise the pasted orders are shown as explicitly unassigned context alongside Amazon transactions. Dates and prose are not parsed or used to guess matches. Expand the Amazon context in a transaction to read all item names and context.
+
+Amazon details stay only in the current preview's memory and are discarded with it. They are not saved to Sheets, backups, or browser recovery storage. Invalid or missing Amazon data never blocks CSV import. Each bank transaction still has one category, regardless of item count.
