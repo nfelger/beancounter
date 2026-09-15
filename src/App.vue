@@ -236,6 +236,10 @@ async function finishSave(plan: SavePlan) {
   clearPending()
   pending.value = null
   preview.value = null
+  if (plan.kind === 'correction') {
+    notice.value = 'Zuordnung und Regel gespeichert.'
+    return
+  }
   notice.value = `${plan.receipt.added} Buchungen gespeichert, davon ${plan.receipt.excluded} ausgeschlossen. ${plan.receipt.duplicates} bereits vorhanden.`
 }
 async function recover() {

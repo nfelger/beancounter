@@ -58,7 +58,7 @@ const tabs = {
   Meta: META_HEADERS,
 }
 type Tab = keyof typeof tabs
-type Cell = string | number | boolean
+export type Cell = string | number | boolean
 export interface Snapshot {
   spreadsheetId: string
   title: string
@@ -69,8 +69,19 @@ export interface Snapshot {
   transactionRows: number
   receiptRows: number
   ruleRows: number
+  ruleCells: Cell[][]
 }
-const planSchema = z.object({
+const cellsSchema = z
+  .array(z.array(z.union([z.string().max(45000), z.number().finite(), z.boolean()])).max(7))
+  .max(29999)
+const ruleChangeSchema = z.object({
+  sheetId: z.number().int(),
+  before: cellsSchema,
+  after: cellsSchema,
+})
+export type RuleChange = z.infer<typeof ruleChangeSchema>
+const importPlanSchema = z.object({
+  kind: z.literal('import'),
   spreadsheetId: z.string().regex(/^[\w-]+$/),
   transactionSheetId: z.number().int(),
   importSheetId: z.number().int(),
@@ -78,8 +89,21 @@ const planSchema = z.object({
   importStart: z.number().int().min(1),
   transactions: z.array(transactionSchema),
   receipt: importSchema,
+  ruleChange: ruleChangeSchema.optional(),
 })
+const correctionPlanSchema = z.object({
+  kind: z.literal('correction'),
+  spreadsheetId: z.string().regex(/^[\w-]+$/),
+  transactionSheetId: z.number().int(),
+  transactionStart: z.number().int().min(1),
+  transactionId: z.string(),
+  before: z.tuple([z.string(), z.string()]),
+  after: z.tuple([z.string().max(1000), z.string().max(1000)]),
+  ruleChange: ruleChangeSchema,
+})
+const planSchema = z.discriminatedUnion('kind', [importPlanSchema, correctionPlanSchema])
 export type SavePlan = z.infer<typeof planSchema>
+export type ImportSavePlan = z.infer<typeof importPlanSchema>
 export class GoogleError extends Error {
   constructor(public status: number) {
     super(
@@ -319,6 +343,7 @@ export class SheetsStore {
       transactionRows: tx!.length + 1,
       receiptRows: imports!.length + 1,
       ruleRows: rules!.length + 1,
+      ruleCells: rules!,
     }
   }
   async formatRules(snapshot: Snapshot) {
@@ -378,8 +403,14 @@ export class SheetsStore {
     })
   }
 }
-export function createSavePlan(snapshot: Snapshot, preview: ImportPreview): SavePlan {
+export function createSavePlan(
+  snapshot: Snapshot,
+  preview: ImportPreview,
+  ruleChange?: RuleChange,
+): ImportSavePlan {
   return {
+    kind: 'import',
+    ...(ruleChange ? { ruleChange } : {}),
     spreadsheetId: snapshot.spreadsheetId,
     transactionSheetId: snapshot.ids.Transactions,
     importSheetId: snapshot.ids.Imports,
@@ -389,30 +420,117 @@ export function createSavePlan(snapshot: Snapshot, preview: ImportPreview): Save
     receipt: receiptFor(preview),
   }
 }
+export function createRuleChange(snapshot: Snapshot, after: Cell[][]): RuleChange {
+  if (!readRules(after)) throw new Error('Regeln fehlen.')
+  return ruleChangeSchema.parse({ sheetId: snapshot.ids.Rules, before: snapshot.ruleCells, after })
+}
+export function createCorrectionPlan(
+  snapshot: Snapshot,
+  id: string,
+  payee: string,
+  category: string,
+  ruleChange: RuleChange,
+): SavePlan {
+  const index = snapshot.transactions.findIndex((t) => t.id === id)
+  const tx = snapshot.transactions[index]
+  if (!tx || tx.classification.excluded) throw new Error('Buchung nicht bearbeitbar.')
+  return correctionPlanSchema.parse({
+    kind: 'correction',
+    spreadsheetId: snapshot.spreadsheetId,
+    transactionSheetId: snapshot.ids.Transactions,
+    transactionStart: index + 1,
+    transactionId: id,
+    before: [tx.classification.payee, tx.classification.category],
+    after: [payee, category],
+    ruleChange,
+  })
+}
+function sameCells(a: Cell[][], b: Cell[][]): boolean {
+  const canonical = (rows: Cell[][]) => {
+    const padded = rows.map((r) => Array.from({ length: 7 }, (_, i) => r[i] ?? ''))
+    while (padded.length && padded.at(-1)!.every((c) => c === '')) padded.pop()
+    return JSON.stringify(padded)
+  }
+  return canonical(a) === canonical(b)
+}
 export function saveBody(plan: SavePlan): string {
   const requests: unknown[] = []
-  if (plan.transactions.length)
+  if (plan.kind === 'correction') {
+    requests.push({
+      updateCells: {
+        start: {
+          sheetId: plan.transactionSheetId,
+          rowIndex: plan.transactionStart,
+          columnIndex: 8,
+        },
+        rows: [rowData(plan.after)],
+        fields: 'userEnteredValue',
+      },
+    })
+  } else {
+    if (plan.transactions.length)
+      requests.push(
+        putRows(
+          plan.transactionSheetId,
+          plan.transactionStart,
+          plan.transactions.map(transactionRow),
+          TX_FORMATS,
+        ),
+      )
     requests.push(
-      putRows(
-        plan.transactionSheetId,
-        plan.transactionStart,
-        plan.transactions.map(transactionRow),
-        TX_FORMATS,
-      ),
+      putRows(plan.importSheetId, plan.importStart, [receiptRow(plan.receipt)], IMPORT_FORMATS),
     )
-  requests.push(
-    putRows(plan.importSheetId, plan.importStart, [receiptRow(plan.receipt)], IMPORT_FORMATS),
-  )
+  }
+  if (plan.ruleChange) {
+    const change = plan.ruleChange
+    if (!readRules(change.after)) throw new Error('Regeln fehlen.')
+    requests.push({
+      updateCells: {
+        range: {
+          sheetId: change.sheetId,
+          startRowIndex: 0,
+          endRowIndex: Math.max(change.before.length, change.after.length) + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 7,
+        },
+        rows: [RULE_HEADERS, ...change.after].map((r) => rowData(r)),
+        fields: 'userEnteredValue',
+      },
+    })
+  }
   const body = JSON.stringify({ requests })
   if (new TextEncoder().encode(body).length > 1_800_000)
     throw new Error('Import zu groß. Bitte einen kürzeren Exportzeitraum wählen.')
-  if (plan.transactionStart + plan.transactions.length > 30000 || plan.importStart >= 30000)
+  if (
+    plan.kind === 'import' &&
+    (plan.transactionStart + plan.transactions.length > 30000 || plan.importStart >= 30000)
+  )
     throw new Error('Tabellengrenze erreicht. Bitte zunächst archivieren.')
   return body
 }
 export function reconcile(snapshot: Snapshot, plan: SavePlan): 'saved' | 'retry' {
   if (snapshot.spreadsheetId !== plan.spreadsheetId)
     throw new Error('Der offene Import gehört zu einer anderen Tabelle.')
+  if (plan.kind === 'correction') {
+    const index = snapshot.transactions.findIndex((t) => t.id === plan.transactionId)
+    const tx = snapshot.transactions[index]
+    if (!tx) throw new Error('Buchung wurde seit dem Speicherversuch verändert.')
+    const current = [tx.classification.payee, tx.classification.category]
+    if (
+      JSON.stringify(current) === JSON.stringify(plan.after) &&
+      sameCells(snapshot.ruleCells, plan.ruleChange.after)
+    )
+      return 'saved'
+    if (
+      index + 1 !== plan.transactionStart ||
+      JSON.stringify(current) !== JSON.stringify(plan.before) ||
+      !sameCells(snapshot.ruleCells, plan.ruleChange.before)
+    )
+      throw new Error(
+        'Buchung oder Regeln wurden seit dem Speicherversuch verändert. Bitte Tabelle prüfen.',
+      )
+    return 'retry'
+  }
   const receipt = snapshot.receipts.find((r) => r.id === plan.receipt.id)
   if (receipt) {
     const ids = new Set(snapshot.transactions.map((t) => t.id))
@@ -420,6 +538,8 @@ export function reconcile(snapshot: Snapshot, plan: SavePlan): 'saved' | 'retry'
       throw new Error('Importbeleg und Buchungen widersprechen sich. Bitte Tabelle prüfen.')
     return 'saved'
   }
+  if (plan.ruleChange && !sameCells(snapshot.ruleCells, plan.ruleChange.before))
+    throw new Error('Regeln wurden seit dem Speicherversuch verändert. Bitte Tabelle prüfen.')
   // A retry may overwrite only its original, still unoccupied target ranges.
   if (
     snapshot.transactionRows !== plan.transactionStart ||

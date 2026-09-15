@@ -1,3 +1,4 @@
+import { ruleRows } from '../src/services/sheet-rules'
 // Entirely invented examples. Never derive public fixtures from a real bank export.
 import type { RawTransaction, ParsedImport } from '../src/domain/model'
 import type { RulePack } from '../src/domain/rules'
@@ -83,6 +84,7 @@ export function snapshot(): Snapshot {
     rules: pack,
     transactionRows: 1,
     receiptRows: 1,
-    ruleRows: 3,
+    ruleRows: ruleRows(pack).length + 1,
+    ruleCells: ruleRows(pack),
   }
 }
