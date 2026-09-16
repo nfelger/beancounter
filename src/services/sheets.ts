@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { simplifyRuleRows } from './simplify-rules'
 import {
   transactionSchema,
   importSchema,
@@ -353,6 +354,23 @@ export class SheetsStore {
         requests: ruleSheetControls(snapshot.ids.Rules, snapshot.rules?.categories ?? []),
       }),
     })
+  }
+  async simplifyRules(snapshot: Snapshot) {
+    const result = simplifyRuleRows(snapshot.ruleCells)
+    if (!result.changed.length) return result
+    const body = JSON.stringify({
+      requests: result.changed.map((index) => ({
+        updateCells: {
+          start: { sheetId: snapshot.ids.Rules, rowIndex: index + 1, columnIndex: 0 },
+          rows: [rowData(result.rows[index]!.slice(0, 7))],
+          fields: 'userEnteredValue',
+        },
+      })),
+    })
+    if (new TextEncoder().encode(body).length > 1_800_000)
+      throw new Error('Zu viele Regeln für eine sichere Anfrage. Keine Regeln wurden geändert.')
+    await this.request(`/${snapshot.spreadsheetId}:batchUpdate`, { method: 'POST', body })
+    return result
   }
   async replaceRules(snapshot: Snapshot, pack: RulePack) {
     const validated = validateRulePack(pack)

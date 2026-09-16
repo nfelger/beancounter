@@ -103,3 +103,9 @@ Upload an ING CSV or choose **CSV-Daten einfügen** and paste the complete expor
 If the preview contains Amazon transactions, optionally paste JSON in **Amazon-Käufe gefunden**: `{ "orders": [{ "orderId": "…", "items": [{ "name": "…", "context": "…" }] }] }`. Exact order IDs in original bank fields identify orders. Otherwise the pasted orders are shown as explicitly unassigned context alongside Amazon transactions. Dates and prose are not parsed or used to guess matches. Expand the Amazon context in a transaction to read all item names and context.
 
 Amazon details stay only in the current preview's memory and are discarded with it. They are not saved to Sheets, backups, or browser recovery storage. Invalid or missing Amazon data never blocks CSV import. Each bank transaction still has one category, regardless of item count.
+
+## Simplify existing JSON rules
+
+In Settings, **Geeignete JSON-Regeln vereinfachen** reloads the sheet and converts only structurally equivalent rules: exactly one `full` regex condition on `normalized`, fixed assignments, no exclusion, no `useNormalized`, and no unknown JSON fields. `eq` is case-sensitive and is deliberately not converted to the case-insensitive simple format; `search` expressions are also left untouched, even if anchored.
+
+The command preserves row positions, priorities, enabled state, and every unconverted row. It replaces each eligible JSON spec with simple-rule cells; converted rules receive generated simple-rule IDs. Existing transactions and their recorded rule IDs stay unchanged. Finish or discard any import preview first. Repeating the command is safe: it reloads the sheet and skips already converted rows, including after a lost save response.

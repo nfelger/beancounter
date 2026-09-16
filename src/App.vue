@@ -206,6 +206,16 @@ async function readRules(event: Event) {
     selectedRulesName.value = file.name
   })
 }
+async function simplifyRules() {
+  if (preview.value || locked.value) return
+  await run('Regeln werden vereinfacht', async () => {
+    await refresh()
+    if (!snapshot.value?.rules) return
+    const result = await store.simplifyRules(snapshot.value)
+    await refresh()
+    notice.value = `${result.changed.length} Regeln vereinfacht; ${result.skipped} JSON-Regeln unverändert. Bestehende Buchungen bleiben unverändert.`
+  })
+}
 async function formatRuleSheet() {
   await run('Regeltabelle wird eingerichtet', async () => {
     await refresh()
@@ -815,6 +825,20 @@ onMounted(async () => {
               Dropdowns und Checkboxen einrichten
             </button>
           </div>
+          <button
+            class="secondary"
+            :disabled="locked || !connected || !snapshot.rules || !!preview"
+            @click="simplifyRules"
+          >
+            Geeignete JSON-Regeln vereinfachen
+          </button>
+          <p class="small muted">
+            Wandelt nur einzelne Ganzfeld-Regex-Bedingungen auf den normalisierten Empfänger ohne
+            Ausschluss oder useNormalized um. Reihenfolge und Aktivierung bleiben erhalten;
+            Regel-IDs werden neu vergeben. Andere Regeln bleiben unverändert. Einen offenen Import
+            bitte zuerst abschließen. Bei unklarer Speicherantwort kann der Befehl erneut ausgeführt
+            werden.
+          </p>
           <p class="small muted">
             Beim nächsten CSV-Upload werden die aktuellen Regeln aus der Tabelle geladen.
           </p>
