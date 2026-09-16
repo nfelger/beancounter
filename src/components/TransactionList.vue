@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { compareTransactions, type SortField, type SortDirection } from '../domain/transaction-sort'
 import type { AmazonContext } from '../domain/amazon'
 import { computed, ref, watch } from 'vue'
 import { relatedAssignments } from '../services/assignment-rules'
@@ -25,6 +26,8 @@ function toggleAmazon(id: string, event: Event) {
   if ((event.target as HTMLDetailsElement).open) expandedAmazon.value.add(id)
   else expandedAmazon.value.delete(id)
 }
+const sortField = ref<SortField>('date')
+const sortDirection = ref<SortDirection>('desc')
 const search = ref(''),
   filter = ref('all'),
   page = ref(1),
@@ -49,13 +52,13 @@ const filtered = computed(() =>
           (filter.value === 'review' && needsReview(t, props.unknownCategory)))
       )
     })
-    .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate)),
+    .sort((a, b) => compareTransactions(a, b, sortField.value, sortDirection.value)),
 )
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / PER_PAGE)))
 const visible = computed(() =>
   filtered.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE),
 )
-watch([search, filter], () => {
+watch([search, filter, sortField, sortDirection], () => {
   page.value = 1
 })
 watch(pageCount, (count) => {
@@ -94,6 +97,22 @@ async function submit(createRule = false) {
         <option value="excluded">Ausgeschlossen</option>
       </select></label
     >
+    <template v-if="previewMode">
+      <label
+        >Sortieren nach<select v-model="sortField">
+          <option value="payee">Empfänger</option>
+          <option value="date">Datum</option>
+          <option value="category">Kategorie</option>
+          <option value="amount">Betrag</option>
+        </select></label
+      >
+      <label
+        >Reihenfolge<select v-model="sortDirection">
+          <option value="asc">Aufsteigend</option>
+          <option value="desc">Absteigend</option>
+        </select></label
+      >
+    </template>
   </div>
   <p class="muted small">{{ filtered.length }} Buchungen</p>
   <div class="transaction-list">

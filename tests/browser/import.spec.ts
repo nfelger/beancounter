@@ -298,3 +298,30 @@ test('removing the final filtered result on page two clamps to the remaining pag
   await expect(page.locator('article.transaction')).toHaveCount(100)
   await expect(page.locator('.pagination')).toHaveCount(0)
 })
+
+test('preview sorting applies before pagination and assignment edits retain the selected order', async ({
+  page,
+}) => {
+  await mockGoogle(page)
+  await openAndUpload(
+    page,
+    csv(
+      Array.from({ length: 101 }, (_, i) => ({
+        ...raw,
+        purpose: `SORT-${i}`,
+        rawAmount: i === 100 ? '-100,00' : '-2,00',
+      })),
+    ),
+  )
+  await page.locator('.pagination').getByRole('button', { name: 'Weiter' }).click()
+  await page.getByLabel('Sortieren nach', { exact: true }).selectOption('amount')
+  await page.getByLabel('Reihenfolge', { exact: true }).selectOption('asc')
+  await expect(page.locator('.pagination')).toContainText('1 / 2')
+  await expect(page.locator('article.transaction .amount').first()).toContainText('-100,00')
+  await editAssignment(page, 0, 'Moonbean', 'Travel')
+  await expect(page.getByLabel('Sortieren nach', { exact: true })).toHaveValue('amount')
+  await expect(page.getByLabel('Reihenfolge', { exact: true })).toHaveValue('asc')
+  await expect(page.locator('article.transaction .amount').first()).toContainText('-100,00')
+  await page.getByLabel('Reihenfolge', { exact: true }).selectOption('desc')
+  await expect(page.locator('article.transaction .amount').first()).toContainText('-2,00')
+})
