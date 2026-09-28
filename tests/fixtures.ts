@@ -9,7 +9,7 @@ export const raw: RawTransaction = {
   rawPayee: 'CARD MOONBEAN SHOP',
   bookingText: 'Card payment',
   purpose: 'TEST-REFERENCE-001',
-  reference: '',
+  reference: 'abc123',
   rawAmount: '-12,34',
   currency: 'EUR',
   rawBalance: '800,00',
@@ -55,8 +55,8 @@ export function csv(rows: RawTransaction[] = [raw]) {
     '',
     'Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Referenz;Saldo;Währung;Betrag;Währung',
     ...rows.map((t) => {
-      if (t.rawBalance === undefined || t.balanceCurrency === undefined) {
-        throw new Error('csv fixture requires balance fields')
+      if (t.reference === undefined || t.rawBalance === undefined || t.balanceCurrency === undefined) {
+        throw new Error('csv fixture requires reference and balance fields')
       }
 
       return [
@@ -65,7 +65,7 @@ export function csv(rows: RawTransaction[] = [raw]) {
         t.rawPayee,
         t.bookingText,
         t.purpose,
-        t.reference,
+	t.reference,
         t.rawBalance,
         t.balanceCurrency,
         t.rawAmount,
