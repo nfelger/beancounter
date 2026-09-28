@@ -55,7 +55,11 @@ export function csv(rows: RawTransaction[] = [raw]) {
     '',
     'Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Referenz;Saldo;Währung;Betrag;Währung',
     ...rows.map((t) => {
-      if (t.reference === undefined || t.rawBalance === undefined || t.balanceCurrency === undefined) {
+      if (
+        t.reference === undefined ||
+        t.rawBalance === undefined ||
+        t.balanceCurrency === undefined
+      ) {
         throw new Error('csv fixture requires reference and balance fields')
       }
 
@@ -65,7 +69,7 @@ export function csv(rows: RawTransaction[] = [raw]) {
         t.rawPayee,
         t.bookingText,
         t.purpose,
-	t.reference,
+        t.reference,
         t.rawBalance,
         t.balanceCurrency,
         t.rawAmount,
