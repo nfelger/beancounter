@@ -7,6 +7,7 @@ export const rawSchema = z.object({
   rawPayee: text,
   bookingText: text,
   purpose: text,
+  reference: text,
   rawAmount: text,
   currency: z.string().regex(/^[A-Z]{3}$/),
   rawBalance: z.string().optional(),

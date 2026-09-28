@@ -50,6 +50,7 @@ const headersWithBalance = [
   'Auftraggeber/Empfänger',
   'Buchungstext',
   'Verwendungszweck',
+  'Referenz',
   'Saldo',
   'Währung',
   'Betrag',
@@ -62,6 +63,7 @@ const headersWithoutBalance = [
   'Auftraggeber/Empfänger',
   'Buchungstext',
   'Verwendungszweck',
+  'Referenz',
   'Betrag',
   'Währung',
 ]
@@ -127,8 +129,8 @@ export function parseIngCsv(text: string, filename: string): ParsedImport {
       if (bookingDate < periodStart || bookingDate > periodEnd)
         throw new Error('Buchung außerhalb des Exportzeitraums.')
 
-      const amountIndex = hasBalance ? 7 : 5
-      const currencyIndex = hasBalance ? 8 : 6
+      const amountIndex = hasBalance ? 8 : 6
+      const currencyIndex = hasBalance ? 9 : 7
 
       parseGermanAmount(r[amountIndex]!)
 
@@ -138,8 +140,9 @@ export function parseIngCsv(text: string, filename: string): ParsedImport {
         rawPayee: r[2]!,
         bookingText: r[3]!,
         purpose: r[4]!,
-        rawBalance: hasBalance ? r[5]! : undefined,
-        balanceCurrency: hasBalance ? r[6]! : undefined,
+        reference: r[5]!,
+        rawBalance: hasBalance ? r[6]! : undefined,
+        balanceCurrency: hasBalance ? r[7]! : undefined,
         rawAmount: r[amountIndex]!,
         currency: r[currencyIndex]!.trim(),
         account,
